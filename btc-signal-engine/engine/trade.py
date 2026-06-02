@@ -78,11 +78,12 @@ def _pick_target(entry, risk, side, liq, dwell, rr_min):
     return round(proj, 1), f"projected {rr_min:.0f}R (no magnet >= {rr_min:.0f}R)", True
 
 
-def _build_side(side, price, atr, liq, dwell, cfg):
-    """Core entry/stop/target + sizing + liquidation for one direction."""
+def _build_side(side, price, atr, liq, dwell, cfg, bet_override=None):
+    """Core entry/stop/target + sizing + liquidation for one direction.
+    bet_override lets the hedge size each leg independently (net-directional)."""
     tc = cfg.get("trade", {})
     rr_min = float(tc.get("rr_min", 3.0))
-    bet_usd = float(tc.get("bet_usd", 100))
+    bet_usd = float(bet_override) if bet_override is not None else float(tc.get("bet_usd", 100))
     lev = int(tc.get("leverage", 25))
     tiers = list(tc.get("leverage_tiers", [10, 25, 50, 100]))
     buf = float(tc.get("stop_buffer_atr", 0.25))
@@ -215,17 +216,27 @@ def plan(sig: dict, liq: dict, dwell: dict, cfg: dict) -> dict:
     range_regime = (abs(sig.get("mtf", 0)) <= 1) and sig["strength"] in ("WEAK", "MODERATE")
     coiling_mid = (dwell.get("state") == "COILING" and dwell.get("location") == "MID")
     if tc.get("enable_hedge", True) and (range_regime or coiling_mid):
-        long_leg = _build_side("LONG", price, atr, liq, dwell, cfg)
-        short_leg = _build_side("SHORT", price, atr, liq, dwell, cfg)
+        base_bet = float(tc.get("bet_usd", 100))
+        max_ratio = float(tc.get("hedge_max_ratio", 6.0))
+        lean = sig["up"] - 50.0                        # composite tilt, in % points
+        # net-directional sizing: the favoured leg keeps the full bet, the other
+        # is scaled down by the ratio (so e.g. a strong lean -> ~6:1 like the desk).
+        ratio = round(1.0 + (max_ratio - 1.0) * min(1.0, abs(lean) / 15.0), 1)
+        if lean >= 0:
+            long_bet, short_bet, heavy = base_bet, base_bet / ratio, "long"
+        else:
+            long_bet, short_bet, heavy = base_bet / ratio, base_bet, "short"
+        long_leg = _build_side("LONG", price, atr, liq, dwell, cfg, bet_override=long_bet)
+        short_leg = _build_side("SHORT", price, atr, liq, dwell, cfg, bet_override=short_bet)
         if long_leg and short_leg:
-            # net lean by composite distance from 50
-            lean = sig["up"] - 50.0
-            ratio = "balanced" if abs(lean) < 3 else (
-                f"net {'long' if lean > 0 else 'short'} "
-                f"{max(1, round(abs(lean) / 3))}:1")
+            net_notional = long_leg["notional"] - short_leg["notional"]
+            net_side = "LONG" if net_notional > 0 else "SHORT" if net_notional < 0 else "FLAT"
+            lean_label = "balanced" if abs(lean) < 3 else f"net {heavy} {ratio:.1f}:1"
             return dict(side="HEDGE", bias=bias, strength=sig["strength"],
-                        reason=("range/equilibrium - no clean swing; hedge both sides"),
-                        net_lean=ratio, long_leg=long_leg, short_leg=short_leg,
+                        reason="range/equilibrium - no clean swing; hedge both sides",
+                        net_lean=lean_label, net_side=net_side,
+                        net_notional=round(abs(net_notional), 1),
+                        long_leg=long_leg, short_leg=short_leg,
                         confluence=_confluence(side), dwell_state=dwell.get("state"))
 
     out = _build_side(side, price, atr, liq, dwell, cfg)

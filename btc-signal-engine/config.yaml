@@ -64,6 +64,7 @@ trade:
   funding_daily: 0.0003  # est. daily funding cost on notional
   void_atr: 2.0          # no-trade if no structure within this many ATR
   enable_hedge: true     # in a range/equilibrium, return both long & short legs
+  hedge_max_ratio: 6.0   # max net-directional size split between the two legs (e.g. 6:1)
 
 # ---- dwell time / dwell block (time/volume-at-price) ---------------------
 dwell:

@@ -110,6 +110,7 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
             L.append(f" TRADE PLAN   ⇅  HEDGE  ({trade['bias']} {trade['strength']}, "
                      f"{trade['confluence']})   lean: {trade['net_lean']}")
             L.append(f"   {trade['reason']}")
+            L.append(f"   net exposure: {trade['net_side']}  ${trade['net_notional']:.0f} notional")
             _leg(L, "▲", trade["long_leg"])
             _leg(L, "▼", trade["short_leg"])
         else:
