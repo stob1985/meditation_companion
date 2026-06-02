@@ -13,11 +13,22 @@ second screenshot's logic WITHOUT paid data, the same way the reference tool's
   - measure long/short imbalance, nearest cluster distance, CVD bias
 """
 from __future__ import annotations
+import math
 import numpy as np
 import pandas as pd
 
 TIERS = [10, 25, 50, 100]
 MMR = 0.005          # ~0.5% maintenance margin approximation
+
+
+def _r(x):
+    """Price-scale-aware rounding (~5 significant figures) so the engine works
+    on $69,000 BTC AND $0.099 DOGE alike (hard round(x,1) broke low-priced coins)."""
+    x = float(x)
+    if not np.isfinite(x) or x == 0:
+        return x
+    d = max(0, min(8, 5 - int(math.floor(math.log10(abs(x))))))
+    return round(x, d)
 
 
 def _swings(df: pd.DataFrame, lb: int):
@@ -44,7 +55,7 @@ def _cluster(levels, width):
     out = []
     for c in clusters:
         price = np.mean([x[0] for x in c])
-        out.append(dict(price=round(price, 1), count=len(c),
+        out.append(dict(price=_r(price), count=len(c),
                         tiers=sorted({x[1] for x in c}),
                         side=c[0][2]))
     return out
@@ -135,7 +146,7 @@ def build(df: pd.DataFrame, cfg: dict) -> dict:
         bounces += int(rej.sum())
     bounce_rate = round(bounces / touches * 100, 1) if touches else None
 
-    return dict(price=price, atr=round(a, 1),
+    return dict(price=_r(price), atr=_r(a),
                 tiers_count={t: sum(1 for c in clusters if t in c["tiers"]) for t in TIERS},
                 active=len(clusters), long_short=(n_long, n_short),
                 nearest_atr=nearest_atr, bounce_rate=bounce_rate, bounce_events=touches,

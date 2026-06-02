@@ -31,6 +31,7 @@ Pure pandas/numpy, no extra deps.
 from __future__ import annotations
 import numpy as np
 import pandas as pd
+from .liquidity import _r
 
 
 def _atr(df: pd.DataFrame, n: int = 14) -> float:
@@ -96,8 +97,8 @@ def build(df: pd.DataFrame, cfg: dict) -> dict:
             mass = float(tpo[i:j + 1].sum())
             vmass = float(vap[i:j + 1].sum())
             blocks.append(dict(
-                lo=round(float(edges[i]), 1), hi=round(float(edges[j + 1]), 1),
-                mid=round(float((edges[i] + edges[j + 1]) / 2), 1),
+                lo=_r(edges[i]), hi=_r(edges[j + 1]),
+                mid=_r((edges[i] + edges[j + 1]) / 2),
                 dwell=round(mass / total_tpo * 100, 1),               # % of total time
                 vol_share=round(vmass / vap.sum() * 100, 1),
                 side=("above" if edges[i] > price else "below" if edges[j + 1] < price
@@ -150,27 +151,27 @@ def build(df: pd.DataFrame, cfg: dict) -> dict:
         if loc == "ABOVE":                            # support below -> shift out up
             dwell_bias = "UP"
             tgt = nearest_above
-            dwell_target = tgt["lo"] if tgt else round(price + 2 * atr, 1)
+            dwell_target = tgt["lo"] if tgt else _r(price + 2 * atr)
             dwell_target_src = (f"next block {tgt['lo']}-{tgt['hi']}" if tgt
                                 else "projected +2ATR (no block above)")
         elif loc == "BELOW":                          # resistance above -> down
             dwell_bias = "DOWN"
             tgt = nearest_below
-            dwell_target = tgt["hi"] if tgt else round(price - 2 * atr, 1)
+            dwell_target = tgt["hi"] if tgt else _r(price - 2 * atr)
             dwell_target_src = (f"next block {tgt['lo']}-{tgt['hi']}" if tgt
                                 else "projected -2ATR (no block below)")
         else:                                         # MID -> mostly down, tap next
             dwell_bias = "DOWN"
             tgt = nearest_below
-            dwell_target = tgt["hi"] if tgt else round(ref["lo"], 1)
+            dwell_target = tgt["hi"] if tgt else _r(ref["lo"])
             dwell_target_src = (f"mid-range -> next block {tgt['lo']}-{tgt['hi']}" if tgt
                                 else "mid-range -> block low")
 
-    return dict(empty=False, price=round(price, 1), atr=round(atr, 1),
-                poc=round(poc, 1), value_area=(round(va_lo, 1), round(va_hi, 1)),
+    return dict(empty=False, price=_r(price), atr=_r(atr),
+                poc=_r(poc), value_area=(_r(va_lo), _r(va_hi)),
                 blocks=blocks, n_blocks=len(blocks),
                 current_run=run, dwell_ratio=dwell_ratio, state=state,
-                band=round(band, 1),
+                band=_r(band),
                 nearest_above=nearest_above, nearest_below=nearest_below,
                 ref_block=ref, location=loc if ref is not None else None,
                 dwell_bias=dwell_bias, dwell_conf=dwell_conf,
