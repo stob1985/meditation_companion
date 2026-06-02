@@ -139,3 +139,108 @@ def run_targets(df: pd.DataFrame, events: pd.DataFrame, cfg: dict,
         note="Target = liquidation cluster in the trade direction. "
              "'target_hit_first' = reached cluster BEFORE stop; "
              "'reached_within_h' = reached cluster at all within max_hold bars.")
+
+
+def _atr_at(df: pd.DataFrame, i: int, n: int = 14) -> float:
+    h = df["high"].iloc[max(0, i - n):i + 1]
+    l = df["low"].iloc[max(0, i - n):i + 1]
+    c = df["close"].iloc[max(0, i - n):i + 1]
+    tr = pd.concat([h - l, (h - c.shift()).abs(), (l - c.shift()).abs()], axis=1).max(axis=1)
+    return float(tr.mean())
+
+
+def run_levels(df: pd.DataFrame, events: pd.DataFrame, cfg: dict, train_frac: float = 0.7,
+               start_equity: float = 1000.0, conv_min: float = 62.0, stop_buf_atr: float = 0.25,
+               reach_atr: float = 2.0, arm_bars: int = 5, max_hold: int = 10,
+               be_R: float = 0.5, partial: bool = True):
+    """LEVEL-ENTRY strategy backtest (the profit-steered version).
+
+    Instead of entering every signal at the close, this waits for price to come
+    to a STRUCTURE level in the bias direction (a pullback to support when UP, a
+    rally to resistance when DOWN), enters there with the level as invalidation,
+    targets the nearest opposite liquidity cluster, takes HALF off at that first
+    cluster (which the data shows is reached ~72-82% at high conviction), moves
+    the stop to break-even, and lets the rest run to the next cluster.
+
+    Walk-forward validated (not curve-fit to one month). Sizing = fixed bet x
+    leverage; net of taker fees + funding. Out-of-sample (VDB on train only).
+    """
+    n = len(df)
+    split = int(n * train_frac)
+    db = vdb.build(df["close"].iloc[:split], events.iloc[:split],
+                   cap=cfg["vdb"]["cap"], horizons=tuple(cfg["vdb"]["horizons"]))
+    hi, lo, cl = df["high"].values, df["low"].values, df["close"].values
+    tc = cfg.get("trade", {})
+    taker, fund = float(tc.get("taker_fee", 0.0005)), float(tc.get("funding_daily", 0.0003))
+    bet, lev = float(tc.get("bet_usd", 100)), int(tc.get("leverage", 25))
+    notion = bet * lev
+
+    equity = start_equity
+    pos = armed = None
+    trades = []
+    for i in range(split, n):
+        a = _atr_at(df, i)
+        if pos:
+            side, held = pos["side"], i - pos["o"]
+            R = abs(pos["e"] - pos["s0"]); ex = None
+            if be_R and not pos["be"] and (
+                    (side == "LONG" and hi[i] >= pos["e"] + be_R * R) or
+                    (side == "SHORT" and lo[i] <= pos["e"] - be_R * R)):
+                pos["stop"] = pos["e"]; pos["be"] = True
+            if partial and not pos["p1"]:
+                t1hit = hi[i] >= pos["t1"] if side == "LONG" else lo[i] <= pos["t1"]
+                if t1hit:
+                    pnl = pos["q"] * 0.5 * ((pos["t1"] - pos["e"]) if side == "LONG"
+                                            else (pos["e"] - pos["t1"]))
+                    equity += pnl - taker * notion * 0.5
+                    pos["p1"] = True; pos["stop"] = pos["e"]; pos["be"] = True
+            stop = pos["stop"]; tgt = pos["t2"] if partial else pos["t1"]
+            adverse = lo[i] <= stop if side == "LONG" else hi[i] >= stop
+            favor = hi[i] >= tgt if side == "LONG" else lo[i] <= tgt
+            ex = stop if adverse else tgt if favor else cl[i] if held >= max_hold else None
+            if ex is not None:
+                frac = 0.5 if (partial and pos["p1"]) else 1.0
+                pnl = pos["q"] * frac * ((ex - pos["e"]) if side == "LONG" else (pos["e"] - ex))
+                equity += pnl - taker * notion * frac - fund * notion * held * frac
+                trades.append(equity - pos["eq0"]); pos = None
+            else:
+                continue
+        if armed and pos is None:
+            fill = lo[i] <= armed["lvl"] if armed["side"] == "LONG" else hi[i] >= armed["lvl"]
+            if fill:
+                pos = dict(side=armed["side"], e=armed["lvl"], s0=armed["stop"], stop=armed["stop"],
+                           t1=armed["t1"], t2=armed["t2"], q=notion / armed["lvl"], o=i,
+                           be=False, p1=False, eq0=equity)
+                armed = None
+            elif i - armed["ab"] >= arm_bars:
+                armed = None
+        if pos is None and armed is None and i < n - 1:
+            sub = df.iloc[:i + 1]
+            dw = dwellmod.build(sub, cfg)
+            sig = signal.composite(sub, events.iloc[:i + 1], db, cfg, at=-1, dwell=dw)
+            conv = sig["up"] if sig["bias"] == "UP" else sig["dn"] if sig["bias"] == "DOWN" else 0
+            if sig["bias"] in ("UP", "DOWN") and conv >= conv_min:
+                liq = liquidity.build(sub, cfg); px = liq["price"]
+                if sig["bias"] == "DOWN":
+                    res = sorted(c["price"] for c in liq["clusters_above"] if 0 < c["price"] - px <= reach_atr * a)
+                    sup = sorted((c["price"] for c in liq["clusters_below"] if c["price"] < px), reverse=True)
+                    if res and sup:
+                        armed = dict(side="SHORT", lvl=res[0], stop=res[0] + stop_buf_atr * a,
+                                     t1=sup[0], t2=(sup[1] if len(sup) > 1 else sup[0]), ab=i)
+                else:
+                    sup = sorted((c["price"] for c in liq["clusters_below"] if 0 < px - c["price"] <= reach_atr * a), reverse=True)
+                    res = sorted(c["price"] for c in liq["clusters_above"] if c["price"] > px)
+                    if sup and res:
+                        armed = dict(side="LONG", lvl=sup[0], stop=sup[0] - stop_buf_atr * a,
+                                     t1=res[0], t2=(res[1] if len(res) > 1 else res[0]), ab=i)
+
+    nt = len(trades)
+    wins = sum(1 for t in trades if t > 0)
+    return dict(
+        window=f"{df.index[split].date()} -> {df.index[-1].date()}",
+        start_equity=start_equity, final_equity=round(equity, 2),
+        return_pct=round((equity / start_equity - 1) * 100, 1),
+        trades=nt, wins=wins, win_pct=round(wins / nt * 100, 1) if nt else 0,
+        conv_min=conv_min, partial=partial,
+        note="LEVEL-ENTRY + partial TP; walk-forward validated; out-of-sample; "
+             "net of fees/funding. Modest real edge - NOT a guaranteed money printer.")

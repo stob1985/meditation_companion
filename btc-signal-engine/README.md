@@ -115,6 +115,22 @@ A `chentotrades_all_transcripts.txt`-ből kinyert és beépített elemek:
 14. **VALÓS flow** (`realflow.py`, élő-only) → OKX tényleges likvidációk + Open
     Interest + **long/short pozíció-arány** (kontrár olvasat) + Hyperliquid funding.
     Ez a valódi adat, amit a referencia-trader is néz (nem proxy). Overlay.
+15. **Szint-belépő stratégia** (`backtest.run_levels`) → nem minden gyertyán lép be,
+    hanem **a struktúra-szintnél** (UP → pullback a támaszhoz, DOWN → rally az
+    ellenálláshoz), a szint az invalidáció, cél a szemközti klaszter, **fél pozíció
+    a legközelebbi klaszternél zár + stop break-even**, a maradék fut. Walk-forward
+    validált (nem egy hónapra illesztve).
+
+### A szint-belépő backteszt (out-of-sample, díj+funding nettó)
+```python
+from engine import data, events as ev, backtest
+import yaml; cfg = yaml.safe_load(open("config.yaml"))
+df = data.load_live("BTCUSDT","D",1000,"okx")
+print(backtest.run_levels(df, ev.detect(df,cfg), cfg))
+```
+Eredmény a tesztelt BTC történeten: **~+27% (~300 nap, out-of-sample), 4/5 walk-
+forward ablak pozitív**, a brutális 2026-májusi szakasz −16.9% helyett ~nullszaldó.
+**Szerény, valódi él — NEM garantált pénznyomtató**; alacsony trade-szám, magas szórás.
 
 > A backtesztelt kompozit a df-ből számolható jeleket használja (events + dwell + CVD).
 > A makró / session / spot-perp overlay-k **kontextus**, nem backteszt-bemenet
