@@ -87,3 +87,7 @@ macro:
   enabled: true          # best-effort: BTC vs SPX/NDX/DXY/gold/oil (Stooq)
 sessions:
   enabled: true          # Asia/London/NY sequence stats (needs intraday data)
+realflow:
+  enabled: true          # LIVE real data: OKX liquidations + OI + long/short ratio
+  inst_family: BTC-USDT  #   + Hyperliquid funding. Contrarian crowd read.
+  liq_limit: 100

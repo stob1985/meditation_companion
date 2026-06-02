@@ -157,6 +157,19 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
             tag = "⚠ DIVERGING" if fd["diverging"] else "aligned"
             L.append(f" SPOT/PERP FLOW  spot {fd['spot']}  perp {fd['perp']}  [{tag}] · {fd['note']}")
             printed = True
+        rf = overlays.get("realflow")
+        if rf:
+            parts = [f"flow {rf['flow_bias']}"]
+            if rf.get("ls_ratio"):
+                ls = rf["ls_ratio"]
+                parts.append(f"L/S {ls['ratio']} (crowd {ls['crowd']} → contra {ls['contrarian']})")
+            if rf.get("oi"):
+                parts.append(f"OI ${rf['oi']['oi_usd']}B {rf['oi']['trend']}")
+            if rf.get("funding"):
+                parts.append(f"funding {rf['funding']['funding']}")
+            L.append(" REAL FLOW (live)  " + "   ".join(parts))
+            L.append(f"   real liquidations seen: {rf['n_liqs']} (recent, OKX)")
+            printed = True
         se = overlays.get("sessions")
         if se:
             if not se.get("intraday"):

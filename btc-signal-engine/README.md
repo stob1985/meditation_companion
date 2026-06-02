@@ -110,6 +110,11 @@ A `chentotrades_all_transcripts.txt`-ből kinyert és beépített elemek:
     (kereszt-tőzsdei konfluencia). Élő módban fut, `liquidity.multi_venue`.
 12. **Bounce Rate** + **LAST-5 / L-N WR / EDGE** oszlopok → a referencia dashboard
     hiányzó mezői (klaszter-visszapattanási arány; esemény friss teljesítménye).
+13. **Regime-override** (`signal.regime_weight`) → a kompozit nem longoz erős
+    trend ellen; ez hangolja a motort a referencia '0up/Ndown after regime'-jéhez.
+14. **VALÓS flow** (`realflow.py`, élő-only) → OKX tényleges likvidációk + Open
+    Interest + **long/short pozíció-arány** (kontrár olvasat) + Hyperliquid funding.
+    Ez a valódi adat, amit a referencia-trader is néz (nem proxy). Overlay.
 
 > A backtesztelt kompozit a df-ből számolható jeleket használja (events + dwell + CVD).
 > A makró / session / spot-perp overlay-k **kontextus**, nem backteszt-bemenet

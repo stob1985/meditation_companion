@@ -11,7 +11,8 @@ import argparse
 import yaml
 from engine import (data, events as ev, vdb, signal, liquidity, dashboard,
                     backtest, dwell as dwellmod, trade as trademod,
-                    flow as flowmod, macro as macromod, sessions as sessmod)
+                    flow as flowmod, macro as macromod, sessions as sessmod,
+                    realflow as rfmod)
 
 
 def load_cfg(path="config.yaml"):
@@ -56,6 +57,7 @@ def main():
         overlays["flow_div"] = flowmod.okx_spot_perp_divergence()
         if cfg.get("liquidity", {}).get("multi_venue", True):
             overlays["multi_liq"] = liquidity.build_multi(cfg)
+        overlays["realflow"] = rfmod.build(cfg, liq["price"], liq["atr"])
     overlays["macro"] = macromod.build(df, cfg)
     overlays["sessions"] = sessmod.build(df, cfg)
 
