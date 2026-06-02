@@ -178,8 +178,69 @@ def _build_side(side, price, atr, liq, dwell, cfg, bet_override=None):
                 max_safe_leverage=max_safe_leverage, warnings=warnings)
 
 
+def plan_levels(sig: dict, liq: dict, dwell: dict, cfg: dict) -> dict:
+    """LEVEL-ENTRY live plan (the walk-forward-validated, profit-steered logic).
+
+    Waits for price to reach a STRUCTURE level in the bias direction, places a
+    LIMIT there with the level as invalidation, takes half off at the nearest
+    opposite cluster (T1) + stop to break-even, and lets the rest run to T2.
+    Only fires at conviction >= conv_min; otherwise WAIT.
+    """
+    tc = cfg.get("trade", {})
+    conv_min = float(tc.get("conv_min", 62))
+    reach = float(tc.get("reach_atr", 2.0))
+    buf = float(tc.get("stop_buffer_atr", 0.25))
+    bet, lev = float(tc.get("bet_usd", 100)), int(tc.get("leverage", 25))
+    mmr = _mmr(lev, cfg)
+    price = float(sig["price"]); atr = float(liq["atr"]); bias = sig["bias"]
+    conv = sig["up"] if bias == "UP" else sig["dn"] if bias == "DOWN" else 0.0
+
+    if bias == "FLAT" or conv < conv_min:
+        return dict(side="WAIT", mode="levels", bias=bias, conv=round(conv, 1),
+                    conv_min=conv_min, strength=sig["strength"],
+                    reason=f"conviction {conv:.1f}% < {conv_min:.0f}% floor - wait")
+
+    if bias == "DOWN":
+        res = sorted(c["price"] for c in liq["clusters_above"] if 0 < c["price"] - price <= reach * atr)
+        sup = sorted((c["price"] for c in liq["clusters_below"] if c["price"] < price), reverse=True)
+        if not res or not sup:
+            return dict(side="WAIT", mode="levels", bias=bias, conv=round(conv, 1),
+                        reason="no resistance within reach / no support target")
+        side, entry = "SHORT", res[0]
+        stop = round(entry + buf * atr, 1)
+        t1 = sup[0]; t2 = sup[1] if len(sup) > 1 else sup[0]
+        liq_price = round(entry * (1 + 1 / lev - mmr), 1)
+    else:
+        sup = sorted((c["price"] for c in liq["clusters_below"] if 0 < price - c["price"] <= reach * atr), reverse=True)
+        res = sorted(c["price"] for c in liq["clusters_above"] if c["price"] > price)
+        if not sup or not res:
+            return dict(side="WAIT", mode="levels", bias=bias, conv=round(conv, 1),
+                        reason="no support within reach / no resistance target")
+        side, entry = "LONG", sup[0]
+        stop = round(entry - buf * atr, 1)
+        t1 = res[0]; t2 = res[1] if len(res) > 1 else res[0]
+        liq_price = round(entry * (1 - 1 / lev + mmr), 1)
+
+    risk = abs(entry - stop)
+    notional = bet * lev
+    qty = notional / entry
+    rr1 = round(abs(t1 - entry) / risk, 2) if risk else None
+    rr2 = round(abs(t2 - entry) / risk, 2) if risk else None
+    pullback = round((entry - price) / atr, 2)            # how far (ATR) price must travel to the limit
+    liq_safe = (stop < liq_price) if side == "SHORT" else (stop > liq_price)
+    return dict(side=side, mode="levels", bias=bias, conv=round(conv, 1),
+                strength=sig["strength"], entry=round(entry, 1), entry_type="LIMIT",
+                pullback_atr=pullback, stop=stop, risk=round(risk, 1),
+                t1=round(t1, 1), t2=round(t2, 1), rr1=rr1, rr2=rr2,
+                bet_usd=bet, leverage=lev, notional=round(notional, 1), qty=round(qty, 6),
+                liq_price=liq_price, liq_safe=liq_safe,
+                plan_note="enter LIMIT at level; take 50% at T1 + stop->BE; runner to T2")
+
+
 def plan(sig: dict, liq: dict, dwell: dict, cfg: dict) -> dict:
     tc = cfg.get("trade", {})
+    if tc.get("entry_mode", "levels") == "levels":
+        return plan_levels(sig, liq, dwell, cfg)
     void_atr = float(tc.get("void_atr", 2.0))
     price = float(sig["price"])
     atr = float(liq["atr"])

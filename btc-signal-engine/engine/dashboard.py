@@ -106,7 +106,25 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
         L.append("=" * 92)
 
     # ---- trade plan -----------------------------------------------------
-    if trade:
+    if trade and trade.get("mode") == "levels":
+        if trade["side"] == "WAIT":
+            L.append(f" TRADE PLAN (LEVEL ENTRY)   ⏳ WAIT  ·  {trade['reason']}")
+        else:
+            t = trade
+            safe = "OK" if t["liq_safe"] else "⚠ UNSAFE"
+            L.append(f" TRADE PLAN (LEVEL ENTRY)   {t['side']}  "
+                     f"({t['bias']} conv {t['conv']}%, {t['strength']})")
+            L.append(f"   entry  {t['entry']:>11.1f}  LIMIT  (price must travel "
+                     f"{t['pullback_atr']} ATR to the level)")
+            L.append(f"   stop   {t['stop']:>11.1f}   (-{t['risk']:.0f}  ·  level + {0.25}ATR)")
+            L.append(f"   T1     {t['t1']:>11.1f}   (R:R {t['rr1']})  → take 50% + stop to break-even")
+            L.append(f"   T2     {t['t2']:>11.1f}   (R:R {t['rr2']})  → runner")
+            L.append(f"   size   bet ${t['bet_usd']:.0f} × {t['leverage']}x = ${t['notional']:.0f}"
+                     f"  ·  {t['qty']} BTC")
+            L.append(f"   liq    {t['liq_price']:>11.1f}   [{safe}]")
+            L.append(f"   ▸ {t['plan_note']}")
+        L.append("=" * 92)
+    elif trade:
         s = trade["side"]
         if s in ("FLAT", "VOID"):
             icon = "⏸" if s == "FLAT" else "🚫"

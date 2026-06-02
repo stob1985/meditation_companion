@@ -132,6 +132,14 @@ Eredmény a tesztelt BTC történeten: **~+27% (~300 nap, out-of-sample), 4/5 wa
 forward ablak pozitív**, a brutális 2026-májusi szakasz −16.9% helyett ~nullszaldó.
 **Szerény, valódi él — NEM garantált pénznyomtató**; alacsony trade-szám, magas szórás.
 
+Az **élő dashboard alapból ezt a logikát adja** (`trade.entry_mode: levels`): limit a
+szintnél, T1-nél fél zár + stop break-even, T2 runner. A régi „minden gyertyán
+belépő" terv `entry_mode: market`-tal érhető el.
+
+**Idősík:** az él a **napi** (vagy HTF) adaton él. 5m/15m intraday-en a stratégia
+enyhén veszteséges, mert a kompozit irány-jel (naptár/hold/bolygó/VDB napi forward-
+hozam) intraday-en zaj — ott külön irány-motor kellene (HTF-bias + order-flow).
+
 > A backtesztelt kompozit a df-ből számolható jeleket használja (events + dwell + CVD).
 > A makró / session / spot-perp overlay-k **kontextus**, nem backteszt-bemenet
 > (külső/élő adat kell hozzájuk; offline szépen kimaradnak).
