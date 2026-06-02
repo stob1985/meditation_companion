@@ -1,0 +1,167 @@
+//@version=6
+// =====================================================================
+//  P2+VDB LITE  -  companion visualizer for the Python signal engine
+//  Reproduces the look of the reference dashboards on TradingView:
+//   - Phase 1 event table (calendar / RSI / vol / pivot / streak / moon)
+//   - composite UP/DN bias + 5d forecast band
+//   - PROXY liquidation levels (swing pivots x leverage tiers)
+//
+//  NOTE: full planetary aspects + the 500-sample Virtual Event Database
+//  live in the Python engine (engine/astro.py, engine/vdb.py). Pine here
+//  uses a moon-phase approximation and live rolling win-rates so the panel
+//  is self-contained. Treat Python as the statistical source of truth.
+// =====================================================================
+indicator("P2+VDB Lite", overlay = true, max_lines_count = 200, max_labels_count = 50)
+
+// ----------------------------- inputs --------------------------------
+grpE = "Events"
+rsiLen   = input.int(14, "RSI length", group = grpE)
+rsiOS    = input.int(36, "RSI oversold", group = grpE)
+volLB    = input.int(20, "Vol lookback", group = grpE)
+volMult  = input.float(1.8, "Vol spike x", group = grpE)
+pivLB    = input.int(10, "Pivot lookback", group = grpE)
+streakMx = input.int(2, "No-streak max", group = grpE)
+moonPct  = input.float(96, "Full-moon illum %", group = grpE)
+
+grpL = "Liquidity (proxy)"
+swLB     = input.int(5,  "Swing lookback (Piv)", group = grpL)
+zoneMult = input.float(0.3, "Zone width ATRx", group = grpL)
+showLiq  = input.bool(true, "Show liquidation levels", group = grpL)
+
+grpS = "Signal"
+hzn      = input.int(3, "Forecast horizon (bars)", group = grpS)
+wrLB     = input.int(250, "Rolling WR lookback", group = grpS)
+
+// ----------------------------- helpers -------------------------------
+rsiV = ta.rsi(close, rsiLen)
+atrV = ta.atr(14)
+adxV = ta.dmi(14, 14).get(2)        // ADX is 3rd value of dmi tuple in v6? guard below
+// safe ADX
+[diPlus, diMinus, adxRaw] = ta.dmi(14, 14)
+
+// --- events
+isSat   = dayofweek == dayofweek.saturday
+dim     = 31
+dimCalc = dayofmonth(time + 86400000) == 1 ? dayofmonth : na
+isTOM   = dayofmonth <= 2 or dayofmonth >= 29
+evCal   = isSat or isTOM
+evRSI   = rsiV < rsiOS
+evVol   = volume > volMult * ta.sma(volume, volLB)
+ph = ta.pivothigh(high, pivLB, pivLB)
+pl = ta.pivotlow(low, pivLB, pivLB)
+evPiv   = not na(ph) or not na(pl)
+up1 = close > close[1]
+var int streak = 0
+streak := up1 == (close[1] > close[2]) ? streak + 1 : 1
+evStreak = streak <= streakMx
+
+// --- moon phase approximation (synodic, ref new moon 2000-01-06 18:14 UTC)
+refNew  = timestamp("UTC", 2000, 01, 06, 18, 14)
+synodic = 29.530588853 * 86400000.0
+age     = math.mod(time - refNew, synodic) / synodic          // 0..1
+illum   = 50.0 * (1 - math.cos(2 * math.pi * age))            // 0..100 %
+evMoon  = illum >= moonPct
+
+// --- rolling forward win-rate per event (lite VDB)
+fwd = close[0] / close[hzn] - 1                                 // realized fwd ret at bar that is hzn old
+f_wr(cond) =>
+    // win-rate of fwd>0 on bars where cond[hzn] was true, over wrLB window
+    hit = 0.0, tot = 0.0
+    for i = hzn to wrLB
+        c = cond[i]
+        if c
+            r = close[i - hzn] / close[i] - 1
+            tot += 1
+            hit += r > 0 ? 1 : 0
+    tot > 0 ? hit / tot : 0.5
+
+wrCal = f_wr(evCal)
+wrRSI = f_wr(evRSI)
+wrVol = f_wr(evVol)
+wrPiv = f_wr(evPiv)
+wrStk = f_wr(evStreak)
+wrMoon= f_wr(evMoon)
+
+// --- composite (weighted lean of ACTIVE events)
+lean(active, wr, w) => active ? [wr * w, w] : [0.0, 0.0]
+[s1,w1] = lean(evCal, wrCal, 1.0)
+[s2,w2] = lean(evRSI, wrRSI, 1.5)
+[s3,w3] = lean(evVol, wrVol, 1.0)
+[s4,w4] = lean(evPiv, wrPiv, 1.0)
+[s5,w5] = lean(evStreak, wrStk, 1.0)
+[s6,w6] = lean(evMoon, wrMoon, 0.9)
+sSum = s1+s2+s3+s4+s5+s6
+wSum = w1+w2+w3+w4+w5+w6
+upP  = wSum > 0 ? sSum / wSum : 0.5
+dnP  = 1 - upP
+biasStr = upP > 0.52 ? "UP" : upP < 0.48 ? "DOWN" : "FLAT"
+spread  = math.abs(upP - 0.5) * 100
+strength= spread > 18 ? "VERY STRONG" : spread > 10 ? "STRONG" : spread > 4 ? "MODERATE" : "WEAK"
+
+// MTF via multi-EMA agreement
+mtf = (close>ta.ema(close,10)?1:-1)+(close>ta.ema(close,20)?1:-1)+(close>ta.ema(close,50)?1:-1)+(close>ta.ema(close,100)?1:-1)+(close>ta.ema(close,200)?1:-1)
+regime = mtf<=-4?"STRONG BEAR":mtf<0?"BEAR":mtf>=4?"STRONG BULL":mtf>0?"BULL":"NEUTRAL"
+
+// forecast band
+sigma = ta.stdev(close/close[hzn]-1, 180)
+fHi = close * (1 + sigma)
+fLo = close * (1 - sigma)
+
+// ----------------------------- table ---------------------------------
+var table t = table.new(position.top_right, 11, 11, border_width = 1)
+f_row(i, name, dn, up, wr, w, active) =>
+    txtcol = active ? color.white : color.gray
+    table.cell(t, 0, i, name, text_color = txtcol, text_size = size.tiny, text_halign = text.align_left)
+    table.cell(t, 1, i, str.tostring(dn*100, "#.#"), text_color = color.red, text_size = size.tiny)
+    table.cell(t, 2, i, str.tostring(up*100, "#.#"), text_color = color.green, text_size = size.tiny)
+    table.cell(t, 3, i, str.tostring(wr*100, "#.#"), text_color = txtcol, text_size = size.tiny)
+    table.cell(t, 4, i, str.tostring(w, "#.#"), text_color = color.gray, text_size = size.tiny)
+
+if barstate.islast
+    table.cell(t, 0, 0, "EVENT", text_color = color.silver, text_size = size.tiny)
+    table.cell(t, 1, 0, "DN%", text_color = color.silver, text_size = size.tiny)
+    table.cell(t, 2, 0, "UP%", text_color = color.silver, text_size = size.tiny)
+    table.cell(t, 3, 0, "WR%", text_color = color.silver, text_size = size.tiny)
+    table.cell(t, 4, 0, "W", text_color = color.silver, text_size = size.tiny)
+    f_row(1, "Saturday + TOM", 1-wrCal, wrCal, wrCal, 1.0, evCal)
+    f_row(2, "RSI OS",         1-wrRSI, wrRSI, wrRSI, 1.5, evRSI)
+    f_row(3, "Vol Spike",      1-wrVol, wrVol, wrVol, 1.0, evVol)
+    f_row(4, "Pivot",          1-wrPiv, wrPiv, wrPiv, 1.0, evPiv)
+    f_row(5, "No Streak",      1-wrStk, wrStk, wrStk, 1.0, evStreak)
+    f_row(6, "Full Moon",      1-wrMoon,wrMoon,wrMoon,0.9, evMoon)
+    table.cell(t, 0, 7, "COMPOSITE", text_color = color.yellow, text_size = size.tiny)
+    table.cell(t, 1, 7, str.tostring(dnP*100,"#.#")+"%", text_color = color.red, text_size = size.tiny)
+    table.cell(t, 2, 7, str.tostring(upP*100,"#.#")+"%", text_color = color.green, text_size = size.tiny)
+    table.cell(t, 3, 7, biasStr+" "+strength, text_color = color.white, text_size = size.tiny)
+    table.cell(t, 0, 8, "FORECAST "+str.tostring(hzn)+"d", text_color = color.silver, text_size = size.tiny)
+    table.cell(t, 2, 8, "\u25b2 "+str.tostring(fHi,"#"), text_color = color.green, text_size = size.tiny)
+    table.cell(t, 1, 8, "\u25bc "+str.tostring(fLo,"#"), text_color = color.red, text_size = size.tiny)
+    table.cell(t, 0, 9, "MTF "+str.tostring(mtf), text_color = color.silver, text_size = size.tiny)
+    table.cell(t, 3, 9, regime, text_color = mtf<0?color.red:color.green, text_size = size.tiny)
+    table.cell(t, 0, 10,"RSI "+str.tostring(rsiV,"#")+"  ADX "+str.tostring(adxRaw,"#"), text_color = color.silver, text_size = size.tiny)
+
+// ----------------------- proxy liquidation levels --------------------
+// shorts at swing highs liquidate ABOVE; longs at swing lows liquidate BELOW
+f_liq(entry, lev, isLong) => isLong ? entry*(1 - 1.0/lev + 0.005) : entry*(1 + 1.0/lev - 0.005)
+tiers = array.from(10, 25, 50, 100)
+tcol  = array.from(color.new(color.green,30), color.new(color.blue,30), color.new(color.orange,30), color.new(color.red,30))
+
+if showLiq and barstate.islast
+    sh = ta.pivothigh(high, swLB, swLB)
+    sl = ta.pivotlow(low, swLB, swLB)
+    // draw from last 200 bars of pivots
+    for off = 0 to 200
+        h_ = ta.valuewhen(not na(ta.pivothigh(high, swLB, swLB)), high[swLB], off)
+        l_ = ta.valuewhen(not na(ta.pivotlow(low, swLB, swLB)),  low[swLB],  off)
+        if not na(h_)
+            for k = 0 to 3
+                lv = f_liq(h_, array.get(tiers, k), false)
+                if lv > close
+                    line.new(bar_index-1, lv, bar_index, lv, color=array.get(tcol,k), width=1, extend=extend.left)
+        if not na(l_)
+            for k = 0 to 3
+                lv = f_liq(l_, array.get(tiers, k), true)
+                if lv < close
+                    line.new(bar_index-1, lv, bar_index, lv, color=array.get(tcol,k), width=1, extend=extend.left)
+
+bgcolor(barstate.islast ? (biasStr=="UP"?color.new(color.green,92):biasStr=="DOWN"?color.new(color.red,92):na) : na)

@@ -1,0 +1,96 @@
+"""
+Signal engine - the COMPOSITE.
+
+For "today" (last bar): take active events, blend each event's directional lean
+(from its VDB win rate) using adaptive weights, and output a single UP/DN %,
+a bias label, a strength, and a 5-day forecast band - exactly like the
+"COMPOSITE" and "FORECAST" rows of the first screenshot.
+"""
+from __future__ import annotations
+import numpy as np
+import pandas as pd
+from . import astro
+
+
+def _adaptive_weights(db: dict, base: dict, horizon: int = 3) -> dict:
+    """Scale each event's base weight by how strong/clean its edge is.
+    Markers:  fire = boosted (>1.15), snow = cooled (<0.9)."""
+    w = {}
+    for ev, bw in base.items():
+        s = db.get(ev, {})
+        wr = s.get(f"wr_{horizon}", 50) / 100.0
+        edge = abs(wr - 0.5) * 2          # 0..1
+        qual = s.get("db_qual", 50) / 100.0
+        factor = 0.6 + 1.2 * edge * qual  # ~0.6 .. 1.8
+        w[ev] = round(bw * factor, 2)
+    return w
+
+
+def composite(df: pd.DataFrame, events: pd.DataFrame, db: dict, cfg: dict,
+              at: int = -1) -> dict:
+    horizon = cfg["signal"]["horizon"]
+    base = cfg["signal"]["base_weights"]
+    aw = _adaptive_weights(db, base, horizon)
+
+    row = events.iloc[at]
+    active = [ev for ev in events.columns if bool(row[ev]) and ev in db]
+
+    up_score, w_total, rows = 0.0, 0.0, []
+    for ev in active:
+        s = db[ev]
+        wr = s.get(f"wr_{horizon}", 50) / 100.0       # >0.5 => up lean
+        w = aw.get(ev, 1.0)
+        up_score += wr * w
+        w_total += w
+        # per-event display fields (UP%/DN% blended model + db)
+        up_blend = round(wr * 100, 1)
+        rows.append(dict(
+            event=ev, dn=round(100 - up_blend, 1), up=up_blend,
+            win=s.get(f"wr_{horizon}", 50), n=s["n"],
+            expect=s.get(f"expect_{horizon}", 0), pf=s.get(f"pf_{horizon}", 1.0),
+            qual=s.get("db_qual", 50), weight=w,
+            bias=("UP bias" if wr > 0.53 else "DOWN bias" if wr < 0.47 else "-"),
+            mark=("\U0001f525" if w > base.get(ev, 1) * 1.15 else
+                  "\u2744" if w < base.get(ev, 1) * 0.9 else "")))
+
+    up = (up_score / w_total) if w_total else 0.5
+
+    # planet composite (Phase 2) folded in with its own weight
+    if cfg["astro"]["enabled"]:
+        pc = astro.aspects(df.index[at].date(), cfg["astro"]["orb"])
+        pw = cfg["signal"]["planet_weight"]
+        up = (up * w_total + (pc["up"] / 100) * pw) / (w_total + pw) if w_total else pc["up"] / 100
+    else:
+        pc = None
+
+    up_pct = round(up * 100, 1)
+    dn_pct = round(100 - up_pct, 1)
+    bias = "UP" if up_pct > 52 else "DOWN" if up_pct < 48 else "FLAT"
+
+    # strength from agreement + sample
+    spread = abs(up_pct - 50)
+    strength = ("VERY STRONG" if spread > 18 else "STRONG" if spread > 10
+                else "MODERATE" if spread > 4 else "WEAK")
+    q = int(round(min(100, spread * 3 + np.mean([r["qual"] for r in rows]) / 2))) if rows else 0
+
+    # forecast band: project the dominant move size over horizon
+    close = df["close"]
+    ret_h = close.pct_change(horizon)
+    sigma = ret_h.tail(cfg["signal"]["band_lookback"]).std()
+    px = float(close.iloc[at])
+    hi = round(px * (1 + sigma), 2)
+    lo = round(px * (1 - sigma), 2)
+
+    # regime / MTF (simple multi-EMA agreement on close)
+    emas = [close.ewm(span=s).mean().iloc[at] for s in (10, 20, 50, 100, 200)]
+    mtf = sum(1 if px > e else -1 for e in emas)
+    regime = "STRONG BEAR" if mtf <= -4 else "BEAR" if mtf < 0 else \
+             "STRONG BULL" if mtf >= 4 else "BULL" if mtf > 0 else "NEUTRAL"
+
+    return dict(rows=rows, active=len(active),
+                up=up_pct, dn=dn_pct, bias=bias, strength=strength, q=q,
+                forecast=dict(conf=int(cfg["signal"]["forecast_conf"] * 100), hi=hi, lo=lo),
+                planet=pc, weights=aw, mtf=mtf, regime=regime,
+                rsi=round(float(events.attrs["rsi"].iloc[at]), 0),
+                adx=round(float(events.attrs["adx"].iloc[at]), 1),
+                price=px, date=df.index[at].date())

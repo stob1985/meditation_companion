@@ -1,0 +1,66 @@
+# ---- BTC signal engine config -------------------------------------------
+data:
+  symbol: BTCUSDT
+  interval: "D"          # D daily, "60"=1h, "120"=2h (matches the 2 screenshots)
+  limit: 1000
+  source: synthetic      # synthetic | live | csv
+  exchange: auto         # auto | okx | hyperliquid | binanceus | coinbase | kraken | bybit
+  csv_path: tests/sample_data.csv
+
+events:
+  pivot_lookback: 10     # image: pivLB=10
+  rsi_len: 14
+  rsi_os: 36             # image event "RSI OS (36)"
+  vol_lookback: 20
+  vol_mult: 1.8
+  streak_max: 2
+  full_moon_pct: 96      # illumination % to call it a full moon
+
+astro:
+  enabled: true          # Phase 2 planetary aspects (astrology - see README caveat)
+  orb: 6.0               # image: Orb Standard (6 deg)
+
+vdb:
+  cap: 500               # image: cap 500 samples/event
+  horizons: [1, 3, 5]
+
+signal:
+  horizon: 3             # which horizon drives the composite lean
+  forecast_conf: 0.68    # image: FORECAST 5-day @ 68%
+  band_lookback: 180
+  planet_weight: 1.2     # how much Phase 2 counts vs Phase 1
+  base_weights:
+    "Saturday + TOM": 1.0
+    "Pivot": 1.0
+    "RSI OS (36)": 1.5
+    "Vol Spike": 1.0
+    "No Streak": 1.0
+    "Full Moon": 0.9
+    "ASIA / Late Asia": 0.8
+    "Planets P2": 1.2
+
+liquidity:
+  swing_lookback: 5      # image: Piv 5
+  history_bars: 200
+  zone_mult: 0.3         # image: Zones ATRx0.3
+  cvd_bars: 30
+
+# ---- trading layer: direction + liquidity -> entry/stop/target -----------
+trade:
+  enabled: true
+  rr_min: 3.0            # minimum reward:risk (1:3)
+  bet_usd: 100           # FIXED collateral / margin per trade (USD)
+  leverage: 25           # 10 | 25 | 50 | 100  (matches the liquidation tiers)
+  leverage_tiers: [10, 25, 50, 100]
+  mmr: 0.005             # maintenance-margin rate (same proxy as liquidity.py)
+  stop_buffer_atr: 0.25  # push stop this far BEYOND the structure (in ATR)
+  stop_fallback_atr: 1.5 # stop distance when no structure is found
+
+# ---- dwell time / dwell block (time/volume-at-price) ---------------------
+dwell:
+  enabled: true
+  lookback: 200          # bars used to build the profile
+  bins: 60               # price buckets
+  value_area_pct: 0.70   # share of dwell that defines the value area
+  block_pctile: 75       # dwell percentile to qualify as a "dwell block"
+  current_tol_atr: 0.5   # band (in ATR) for the current-dwell / coiling gauge
