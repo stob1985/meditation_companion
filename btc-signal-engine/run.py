@@ -54,6 +54,8 @@ def main():
     overlays = {}
     if cfg["data"]["source"] == "live":
         overlays["flow_div"] = flowmod.okx_spot_perp_divergence()
+        if cfg.get("liquidity", {}).get("multi_venue", True):
+            overlays["multi_liq"] = liquidity.build_multi(cfg)
     overlays["macro"] = macromod.build(df, cfg)
     overlays["sessions"] = sessmod.build(df, cfg)
 

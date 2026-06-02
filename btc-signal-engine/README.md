@@ -104,6 +104,12 @@ A `chentotrades_all_transcripts.txt`-ből kinyert és beépített elemek:
 8. **Tap-count / power-of-three** → sokszor tesztelt szint „worn" (gyengébb cél).
 9. **Makró-korreláció** (`macro.py`) → BTC vs SPX/NDX/DXY/arany/olaj (best-effort).
 10. **Session-szekvencia** (`sessions.py`) → P(NY↑ | Asia, London) intraday adaton.
+11. **Multi-tőzsdés likvidációk** (`liquidity.build_multi`) → a proxy likvidációs
+    térképet **több tőzsdén** (OKX/Binance.US/Hyperliquid/Kraken/Coinbase) építi fel
+    és **összevonja**: ahol több tőzsde egyetért egy szinten, az **erősebb mágnes**
+    (kereszt-tőzsdei konfluencia). Élő módban fut, `liquidity.multi_venue`.
+12. **Bounce Rate** + **LAST-5 / L-N WR / EDGE** oszlopok → a referencia dashboard
+    hiányzó mezői (klaszter-visszapattanási arány; esemény friss teljesítménye).
 
 > A backtesztelt kompozit a df-ből számolható jeleket használja (events + dwell + CVD).
 > A makró / session / spot-perp overlay-k **kontextus**, nem backteszt-bemenet

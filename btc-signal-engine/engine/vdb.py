@@ -64,6 +64,25 @@ def build(close: pd.Series, events: pd.DataFrame, cap: int = 500,
         r3 = fr[3].iloc[idx].dropna()
         rec["best_3"] = round(r3.max() * 100, 1) if len(r3) else np.nan
         rec["wrst_3"] = round(r3.min() * 100, 1) if len(r3) else np.nan
+
+        # recent performance: LAST-5 avg return + last-N win rate + EDGE label
+        hr = max(horizons)
+        r_all = fr[hr].iloc[idx].dropna()
+        last5 = r_all.tail(5)
+        lastN = r_all.tail(10)
+        rec["last5"] = round(last5.mean() * 100, 2) if len(last5) else np.nan
+        rec["ln_wr"] = round((lastN > 0).mean() * 100, 0) if len(lastN) else np.nan
+        hist_wr = rec.get(f"wr_{hr}", 50)
+        hist_dir = 1 if hist_wr > 53 else -1 if hist_wr < 47 else 0
+        rec_dir = (1 if rec["ln_wr"] > 55 else -1 if rec["ln_wr"] < 45 else 0) \
+            if not np.isnan(rec["ln_wr"]) else 0
+        if hist_dir != 0 and rec_dir == hist_dir:
+            rec["edge"] = "EDGE↑" if hist_dir > 0 else "EDGE↓"
+        elif hist_dir != 0 and rec_dir == -hist_dir:
+            rec["edge"] = "FADE"           # recent contradicts the historical edge
+        else:
+            rec["edge"] = "NEUTRAL"
+
         # DB quality: how full the sample is + how stable WR across horizons
         fill = min(len(idx) / cap, 1.0)
         wr_vals = [rec.get(f"wr_{h}", 50) for h in horizons]

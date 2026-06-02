@@ -49,6 +49,7 @@ def composite(df: pd.DataFrame, events: pd.DataFrame, db: dict, cfg: dict,
             win=s.get(f"wr_{horizon}", 50), n=s["n"],
             expect=s.get(f"expect_{horizon}", 0), pf=s.get(f"pf_{horizon}", 1.0),
             qual=s.get("db_qual", 50), weight=w,
+            last5=s.get("last5"), ln_wr=s.get("ln_wr"), edge=s.get("edge", "NEUTRAL"),
             bias=("UP bias" if wr > 0.53 else "DOWN bias" if wr < 0.47 else "-"),
             mark=("\U0001f525" if w > base.get(ev, 1) * 1.15 else
                   "\u2744" if w < base.get(ev, 1) * 0.9 else "")))

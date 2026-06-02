@@ -48,6 +48,9 @@ liquidity:
   cvd_bars: 30
   # tiered maintenance margin (spot terms): higher leverage liquidates earlier
   mmr_tiers: {10: 0.004, 25: 0.005, 50: 0.0075, 100: 0.01}
+  # multi-exchange liquidation aggregation (live only): cross-venue confluence
+  multi_venue: true
+  venues: [okx, binanceus, hyperliquid, kraken, coinbase]
 
 # ---- trading layer: direction + liquidity -> entry/stop/target -----------
 trade:

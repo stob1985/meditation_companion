@@ -118,11 +118,91 @@ def build(df: pd.DataFrame, cfg: dict) -> dict:
     else:
         imb = "MILD " + ("BULLISH" if buyside > sellside else "BEARISH")
 
+    # bounce rate: of bars that pierced a cluster zone, how many REJECTED it
+    # (open & close on the same side of the level = poked and returned) vs broke
+    # through (open & close straddle the level). Mirrors the "Bounce Rate" panel.
+    o_arr, cl_arr = d["open"].values, d["close"].values
+    touches = bounces = 0
+    for c in clusters:
+        p = c["price"]
+        pierce = (lo_arr <= p) & (hi_arr >= p)
+        if not pierce.any():
+            continue
+        so = np.sign(o_arr[pierce] - p)
+        sc = np.sign(cl_arr[pierce] - p)
+        rej = (so == sc) & (so != 0)
+        touches += int(pierce.sum())
+        bounces += int(rej.sum())
+    bounce_rate = round(bounces / touches * 100, 1) if touches else None
+
     return dict(price=price, atr=round(a, 1),
                 tiers_count={t: sum(1 for c in clusters if t in c["tiers"]) for t in TIERS},
                 active=len(clusters), long_short=(n_long, n_short),
-                nearest_atr=nearest_atr,
+                nearest_atr=nearest_atr, bounce_rate=bounce_rate, bounce_events=touches,
                 imbalance=imb, cvd_bias=cvd_bias,
                 clusters_above=sorted(above, key=lambda c: c["price"]),
                 clusters_below=sorted(below, key=lambda c: -c["price"]),
                 zone_mult=cfg["liquidity"]["zone_mult"])
+
+
+# ---------------------------------------------------------------- multi-venue
+def _merge_venues(items, width):
+    """items: list of (cluster_dict, venue). Group by price proximity; a level
+    confirmed by MORE venues is a stronger, higher-confluence magnet."""
+    if not items:
+        return []
+    items = sorted(items, key=lambda t: t[0]["price"])
+    groups, cur = [], [items[0]]
+    for it in items[1:]:
+        if abs(it[0]["price"] - cur[-1][0]["price"]) <= width:
+            cur.append(it)
+        else:
+            groups.append(cur); cur = [it]
+    groups.append(cur)
+    out = []
+    for g in groups:
+        prices = [c["price"] for c, _ in g]
+        venues = sorted({v for _, v in g})
+        tiers = sorted({t for c, _ in g for t in c["tiers"]})
+        out.append(dict(price=round(float(np.mean(prices)), 1),
+                        count=sum(c["count"] for c, _ in g),
+                        venues=venues, n_venues=len(venues), tiers=tiers))
+    return out
+
+
+def build_multi(cfg: dict) -> dict | None:
+    """Aggregate the PROXY liquidation map across several exchanges.
+    Levels where multiple venues agree = cross-exchange confluence. Best-effort:
+    skips venues that fail, returns None if none reachable."""
+    from . import data
+    venues = cfg["liquidity"].get("venues",
+                                  ["okx", "binanceus", "hyperliquid", "kraken", "coinbase"])
+    sym, interval = cfg["data"]["symbol"], cfg["data"]["interval"]
+    limit = min(int(cfg["data"].get("limit", 1000)), 500)
+    per, all_above, all_below = {}, [], []
+    ref_price = ref_atr = None
+    for ex in venues:
+        try:
+            dfx = data.load_live(sym, interval, limit, exchange=ex, verbose=False)
+            m = build(dfx, cfg)
+        except Exception:                              # noqa: BLE001
+            continue
+        per[ex] = dict(price=m["price"], imbalance=m["imbalance"],
+                       cvd_bias=m["cvd_bias"], active=m["active"],
+                       bounce=m["bounce_rate"])
+        if ref_price is None:
+            ref_price, ref_atr = m["price"], m["atr"]
+        all_above += [(c, ex) for c in m["clusters_above"]]
+        all_below += [(c, ex) for c in m["clusters_below"]]
+    if not per:
+        return None
+    width = ref_atr * cfg["liquidity"]["zone_mult"]
+    above = sorted(_merge_venues(all_above, width), key=lambda c: c["price"])
+    below = sorted(_merge_venues(all_below, width), key=lambda c: -c["price"])
+    # consensus imbalance across venues
+    bull = sum(1 for v in per.values() if "BULL" in v["imbalance"])
+    bear = sum(1 for v in per.values() if "BEAR" in v["imbalance"])
+    consensus = "BULLISH" if bull > bear else "BEARISH" if bear > bull else "MIXED"
+    return dict(venues=list(per.keys()), per_venue=per, ref_price=ref_price,
+                clusters_above=above, clusters_below=below, consensus=consensus,
+                n_venues=len(per))

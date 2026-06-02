@@ -38,15 +38,19 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
     L.append("=" * 92)
 
     # ---- Phase 1 event table -------------------------------------------
-    hdr = (_c("EVENT", 24) + _c("DN%", 6) + _c("UP%", 6) + _c("WIN", 6) +
-           _c("n", 6) + _c("EXPECT", 9) + _c("PF", 6) + _c("QUAL", 6) + _c("BIAS", 10) + "MARK")
+    hdr = (_c("EVENT", 22) + _c("DN%", 6) + _c("UP%", 6) + _c("WIN", 6) +
+           _c("n", 6) + _c("EXPECT", 8) + _c("PF", 6) + _c("LAST5", 8) +
+           _c("LNWR", 6) + _c("QUAL", 6) + _c("BIAS", 10) + _c("EDGE", 8) + "M")
     L.append(hdr)
-    L.append("-" * 92)
+    L.append("-" * 100)
     for r in sorted(sig["rows"], key=lambda x: -x["qual"]):
-        L.append(_c(r["event"], 24) + _c(r["dn"], 6) + _c(r["up"], 6) +
-                 _c(r["win"], 6) + _c(r["n"], 6) + _c(f"{r['expect']:+.2f}%", 9) +
-                 _c(r["pf"], 6) + _c(r["qual"], 6) + _c(r["bias"], 10) + r["mark"])
-    L.append("-" * 92)
+        l5 = f"{r['last5']:+.1f}%" if r.get("last5") is not None and r["last5"] == r["last5"] else "-"
+        lw = f"{r['ln_wr']:.0f}" if r.get("ln_wr") is not None and r["ln_wr"] == r["ln_wr"] else "-"
+        L.append(_c(r["event"], 22) + _c(r["dn"], 6) + _c(r["up"], 6) +
+                 _c(r["win"], 6) + _c(r["n"], 6) + _c(f"{r['expect']:+.2f}%", 8) +
+                 _c(r["pf"], 6) + _c(l5, 8) + _c(lw, 6) + _c(r["qual"], 6) +
+                 _c(r["bias"], 10) + _c(r.get("edge", "-"), 8) + r["mark"])
+    L.append("-" * 100)
 
     # ---- composite ------------------------------------------------------
     L.append(f" COMPOSITE ({sig['active']} active)   "
@@ -64,8 +68,9 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
 
     # ---- liquidity map --------------------------------------------------
     nl, ns = liq["long_short"]
+    br = f"{liq['bounce_rate']}% ({liq['bounce_events']} ev)" if liq.get("bounce_rate") is not None else "n/a"
     L.append(f" LIQUIDITY MAP (PROXY)   active {liq['active']}   "
-             f"Long/Short {nl}/{ns}   nearest {liq['nearest_atr']} ATR")
+             f"Long/Short {nl}/{ns}   nearest {liq['nearest_atr']} ATR   bounce {br}")
     L.append(f"   Liq Imbalance: {liq['imbalance']}    CVD Bias: {liq['cvd_bias']}    "
              f"ATR {liq['atr']}   zones ATR\u00d7{liq['zone_mult']}")
     fl = sig.get("flow")
@@ -117,6 +122,25 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
             L.append(f" TRADE PLAN   ({trade['bias']} {trade['strength']}, "
                      f"confluence {trade['confluence']}, flow {trade.get('flow','n/a')})")
             _leg(L, "→", trade)
+        L.append("=" * 92)
+
+    # ---- multi-exchange liquidation map --------------------------------
+    if overlays and overlays.get("multi_liq"):
+        ml = overlays["multi_liq"]
+        L.append(f" MULTI-EXCHANGE LIQUIDATIONS   venues {ml['n_venues']}: "
+                 f"{', '.join(ml['venues'])}   consensus {ml['consensus']}")
+        pv = "  ".join(f"{k}:{v['imbalance'].split()[-1][:4]}/{v['cvd_bias'][:1]}"
+                       for k, v in ml["per_venue"].items())
+        L.append(f"   per-venue (imb/cvd): {pv}")
+        L.append("   ── confluence ABOVE (venues agree → stronger magnet) ──")
+        for c in sorted(ml["clusters_above"], key=lambda c: -c["n_venues"])[:5]:
+            L.append(f"      {c['price']:>11.1f}   {c['n_venues']}venue  "
+                     f"x{c['count']:<3} {c['tiers']}  [{','.join(v[:3] for v in c['venues'])}]")
+        L.append(f"   ▶ price {ml['ref_price']:.1f}")
+        L.append("   ── confluence BELOW ──")
+        for c in sorted(ml["clusters_below"], key=lambda c: -c["n_venues"])[:5]:
+            L.append(f"      {c['price']:>11.1f}   {c['n_venues']}venue  "
+                     f"x{c['count']:<3} {c['tiers']}  [{','.join(v[:3] for v in c['venues'])}]")
         L.append("=" * 92)
 
     # ---- confluence overlays -------------------------------------------
