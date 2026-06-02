@@ -9,7 +9,7 @@ a bias label, a strength, and a 5-day forecast band - exactly like the
 from __future__ import annotations
 import numpy as np
 import pandas as pd
-from . import astro
+from . import astro, flow as flowmod, dwell as dwellmod
 
 
 def _adaptive_weights(db: dict, base: dict, horizon: int = 3) -> dict:
@@ -27,7 +27,7 @@ def _adaptive_weights(db: dict, base: dict, horizon: int = 3) -> dict:
 
 
 def composite(df: pd.DataFrame, events: pd.DataFrame, db: dict, cfg: dict,
-              at: int = -1) -> dict:
+              at: int = -1, dwell: dict = None) -> dict:
     horizon = cfg["signal"]["horizon"]
     base = cfg["signal"]["base_weights"]
     aw = _adaptive_weights(db, base, horizon)
@@ -60,8 +60,28 @@ def composite(df: pd.DataFrame, events: pd.DataFrame, db: dict, cfg: dict,
         pc = astro.aspects(df.index[at].date(), cfg["astro"]["orb"])
         pw = cfg["signal"]["planet_weight"]
         up = (up * w_total + (pc["up"] / 100) * pw) / (w_total + pw) if w_total else pc["up"] / 100
+        w_total += pw
     else:
         pc = None
+
+    # dwell direction rule (the transcript's main edge) folded in
+    sub = df.iloc[:at + 1] if at != -1 else df
+    if dwell is None and cfg.get("dwell", {}).get("enabled", True):
+        dwell = dwellmod.build(sub, cfg)
+    dw_w = float(cfg["signal"].get("dwell_weight", 0.0))
+    if dwell and not dwell.get("empty") and dwell.get("dwell_bias") not in (None, "NEUTRAL") and dw_w > 0:
+        dconf = float(dwell.get("dwell_conf", 0.0))
+        dwell_up = 0.5 + (0.5 * dconf if dwell["dwell_bias"] == "UP" else -0.5 * dconf)
+        eff = dw_w * max(0.1, dconf)                   # weak conviction -> small weight
+        up = (up * w_total + dwell_up * eff) / (w_total + eff)
+        w_total += eff
+
+    # money flow / CVD folded in
+    fl_w = float(cfg["signal"].get("flow_weight", 0.0))
+    fl = flowmod.cvd_bias(sub, win=cfg.get("liquidity", {}).get("cvd_bars", 30))
+    if fl_w > 0 and fl["bias"] != "FLAT":
+        up = (up * w_total + fl["up"] * fl_w) / (w_total + fl_w)
+        w_total += fl_w
 
     up_pct = round(up * 100, 1)
     dn_pct = round(100 - up_pct, 1)
@@ -90,7 +110,7 @@ def composite(df: pd.DataFrame, events: pd.DataFrame, db: dict, cfg: dict,
     return dict(rows=rows, active=len(active),
                 up=up_pct, dn=dn_pct, bias=bias, strength=strength, q=q,
                 forecast=dict(conf=int(cfg["signal"]["forecast_conf"] * 100), hi=hi, lo=lo),
-                planet=pc, weights=aw, mtf=mtf, regime=regime,
+                planet=pc, dwell=dwell, flow=fl, weights=aw, mtf=mtf, regime=regime,
                 rsi=round(float(events.attrs["rsi"].iloc[at]), 0),
                 adx=round(float(events.attrs["adx"].iloc[at]), 1),
                 price=px, date=df.index[at].date())

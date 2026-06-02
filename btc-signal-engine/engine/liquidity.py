@@ -58,22 +58,37 @@ def build(df: pd.DataFrame, cfg: dict) -> dict:
     a = (d["high"] - d["low"]).rolling(14).mean().iloc[-1]
     width = a * cfg["liquidity"]["zone_mult"]
 
+    mmr_tiers = cfg["liquidity"].get("mmr_tiers", {})
+
+    def _mmr(lev):
+        return float(mmr_tiers.get(lev, mmr_tiers.get(str(lev), MMR)))
+
     sh, sl = _swings(d, lb)
     levels = []
-    # shorts entered at swing HIGHS -> liquidate ABOVE
+    # shorts entered at swing HIGHS -> liquidate ABOVE (tiered maintenance margin)
     for entry in sh.values:
         for lev in TIERS:
-            lv = entry * (1 + 1 / lev - MMR)
+            lv = entry * (1 + 1 / lev - _mmr(lev))
             if lv > price:
                 levels.append((lv, lev, "short"))
     # longs entered at swing LOWS -> liquidate BELOW
     for entry in sl.values:
         for lev in TIERS:
-            lv = entry * (1 - 1 / lev + MMR)
+            lv = entry * (1 - 1 / lev + _mmr(lev))
             if lv < price:
                 levels.append((lv, lev, "long"))
 
     clusters = _cluster(levels, width)
+
+    # tap count: how many bars probed within `width` of each cluster price.
+    # heavily-tapped levels are "worn" (power-of-three: they tend to break),
+    # fresh levels are cleaner magnets/targets.
+    hi_arr, lo_arr = d["high"].values, d["low"].values
+    for c in clusters:
+        p = c["price"]
+        c["taps"] = int(np.sum((lo_arr <= p + width) & (hi_arr >= p - width)))
+        c["fresh"] = c["taps"] <= 3
+
     above = [c for c in clusters if c["price"] > price]
     below = [c for c in clusters if c["price"] < price]
     n_long = sum(1 for c in clusters if c["side"] == "long")

@@ -29,6 +29,8 @@ signal:
   forecast_conf: 0.68    # image: FORECAST 5-day @ 68%
   band_lookback: 180
   planet_weight: 1.2     # how much Phase 2 counts vs Phase 1
+  dwell_weight: 1.5      # weight of the dwell direction rule (transcript's main edge)
+  flow_weight: 1.0       # weight of the money-flow / CVD lean
   base_weights:
     "Saturday + TOM": 1.0
     "Pivot": 1.0
@@ -44,6 +46,8 @@ liquidity:
   history_bars: 200
   zone_mult: 0.3         # image: Zones ATRx0.3
   cvd_bars: 30
+  # tiered maintenance margin (spot terms): higher leverage liquidates earlier
+  mmr_tiers: {10: 0.004, 25: 0.005, 50: 0.0075, 100: 0.01}
 
 # ---- trading layer: direction + liquidity -> entry/stop/target -----------
 trade:
@@ -52,9 +56,14 @@ trade:
   bet_usd: 100           # FIXED collateral / margin per trade (USD)
   leverage: 25           # 10 | 25 | 50 | 100  (matches the liquidation tiers)
   leverage_tiers: [10, 25, 50, 100]
-  mmr: 0.005             # maintenance-margin rate (same proxy as liquidity.py)
+  mmr: 0.005             # fallback maintenance-margin rate
+  mmr_tiers: {10: 0.004, 25: 0.005, 50: 0.0075, 100: 0.01}   # tiered (per transcript)
   stop_buffer_atr: 0.25  # push stop this far BEYOND the structure (in ATR)
   stop_fallback_atr: 1.5 # stop distance when no structure is found
+  taker_fee: 0.0005      # per-side taker fee (0.05%) for net P/L + backtest
+  funding_daily: 0.0003  # est. daily funding cost on notional
+  void_atr: 2.0          # no-trade if no structure within this many ATR
+  enable_hedge: true     # in a range/equilibrium, return both long & short legs
 
 # ---- dwell time / dwell block (time/volume-at-price) ---------------------
 dwell:
@@ -64,3 +73,9 @@ dwell:
   value_area_pct: 0.70   # share of dwell that defines the value area
   block_pctile: 75       # dwell percentile to qualify as a "dwell block"
   current_tol_atr: 0.5   # band (in ATR) for the current-dwell / coiling gauge
+
+# ---- confluence overlays (context; not backtested composite inputs) -------
+macro:
+  enabled: true          # best-effort: BTC vs SPX/NDX/DXY/gold/oil (Stooq)
+sessions:
+  enabled: true          # Asia/London/NY sequence stats (needs intraday data)

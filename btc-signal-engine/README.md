@@ -29,11 +29,14 @@ btc-signal-engine/
     events.py           Phase 1 esemény-detektorok
     astro.py            Phase 2 – hold + bolygó-aspektusok (pyephem)
     vdb.py              Virtual Event Database (forward-return statisztika)
-    liquidity.py        proxy likvidációs klaszterek
-    signal.py           kompozit irány + adaptív súlyok + forecast
-    dwell.py            dwell time / dwell block (idő-volumen-az-áron profil)
-    trade.py            kereskedési réteg: entry/stop/target, R:R, méret, likvidáció
-    backtest.py         OUT-OF-SAMPLE backteszt (train/test split)
+    liquidity.py        proxy likvidációs klaszterek (tiered MMR + tap-count)
+    dwell.py            dwell time / dwell block + IRÁNY-szabály
+    flow.py             money flow / CVD + spot-vs-perp divergencia
+    signal.py           kompozit irány (events + dwell + CVD + planet) + forecast
+    trade.py            entry/stop/target, R:R, méret, likvidáció, díjak, hedge, void
+    macro.py            makró-korreláció overlay (SPX/NDX/DXY/arany/olaj – best-effort)
+    sessions.py         Asia/London/NY session-szekvencia valószínűség (intraday)
+    backtest.py         OUT-OF-SAMPLE backteszt (díj+funding nettósítva)
     dashboard.py        terminál panel a képek stílusában
   pine/
     p2_vdb_lite.pine    TradingView companion indikátor
@@ -75,10 +78,36 @@ A kompozit irányból + a likviditási térképből + a dwell blokkokból egy ko
   megadja a *max biztonságos tőkeáttétel*-szintet.
 
 ## Dwell time / dwell block (`engine/dwell.py`)
-Idő- és volumen-az-áron profil: **POC**, **value area**, és a magas-elidőzésű
-**dwell blokkok** (acceptance zónák → erős támasz/ellenállás, fékezik a mozgást).
-A `state` (COILING / TRENDING) jelzi, hogy az ár szűk sávban tekeredik-e
-(kitörés előtt) vagy trendel. A trade réteg ezt használja a stop elhelyezéséhez.
+Idő- és volumen-az-áron profil: **POC** (külön a blokkoktól), **value area**, és a
+magas-elidőzésű **dwell blokkok** (acceptance zónák → erős támasz/ellenállás).
+A `state` (COILING / TRENDING) jelzi, szűk sávban tekeredik-e az ár.
+
+**Dwell IRÁNY-szabály (a transcript fő éle):** az ár helye a legközelebbi blokkhoz
+képest adja az irányt — **blokk FÖLÖTT → UP** (shift out), **blokk ALATT → DOWN**
+(„goner"), **blokk KÖZEPÉN → DOWN**, majd a következő blokkot célozza. Ez bekerül a
+kompozitba (`signal.dwell_weight`), így a backtest is méri.
+
+## Pontosság-növelő bővítések (ChentoTrades transcript alapján)
+A `chentotrades_all_transcripts.txt`-ből kinyert és beépített elemek:
+
+1. **Dwell irány-szabály** → kompozit irányjelzés (fent).
+2. **Money flow / CVD** (`flow.py`) → a CVD lejtése + ár/CVD egyezés (confirm /
+   distribution / absorption) bekerül a kompozitba (`signal.flow_weight`).
+3. **Spot-vs-perp CVD divergencia** (OKX, best-effort) → ha a perp húzza az árat,
+   de a spot nem erősíti meg, „perp-driven" (gyengébb) jelzés. Overlay.
+4. **Tiered maintenance margin** → a likvidáció a tőkeáttétellel skálázódik
+   (`liquidity.mmr_tiers`, `trade.mmr_tiers`), reálisabb likvidációs ár.
+5. **Díjak + funding** a P/L-ben és a backtestben → nettó R:R és nettó expectancy.
+6. **Void / no-trade zóna** → ha az ár nincs struktúra közelében (`trade.void_atr`),
+   nincs trade („everything in between is noise").
+7. **Regime-alapú HEDGE** → range/egyensúlyban long ÉS short láb, nettó lean-nel.
+8. **Tap-count / power-of-three** → sokszor tesztelt szint „worn" (gyengébb cél).
+9. **Makró-korreláció** (`macro.py`) → BTC vs SPX/NDX/DXY/arany/olaj (best-effort).
+10. **Session-szekvencia** (`sessions.py`) → P(NY↑ | Asia, London) intraday adaton.
+
+> A backtesztelt kompozit a df-ből számolható jeleket használja (events + dwell + CVD).
+> A makró / session / spot-perp overlay-k **kontextus**, nem backteszt-bemenet
+> (külső/élő adat kell hozzájuk; offline szépen kimaradnak).
 
 ## Pine indikátor
 Másold a `pine/p2_vdb_lite.pine` tartalmát a TradingView Pine editorba → *Add to chart*.
@@ -100,25 +129,29 @@ bolygó-aspektus + 500-mintás VDB a Python motorban él (az a mérvadó).
 | Kulcs | Jelentés |
 |---|---|
 | `trade.rr_min` | minimum reward:risk (alap 3.0 = 1:3) |
-| `trade.bet_usd` | fix tét / margin tradenként (USD) |
-| `trade.leverage` | tőkeáttétel (10/25/50/100) |
-| `trade.stop_buffer_atr` | stop puffer a struktúra mögött (ATR) |
-| `dwell.lookback` / `bins` | profil hossza / ár-vödrök száma |
-| `dwell.value_area_pct` | value area aránya (alap 0.70) |
-| `dwell.block_pctile` | dwell percentilis a blokk-küszöbhöz |
+| `trade.bet_usd` / `leverage` | fix tét + tőkeáttétel |
+| `trade.mmr_tiers` | tiered maintenance margin tőkeáttételenként |
+| `trade.taker_fee` / `funding_daily` | díj + funding a nettó P/L-hez |
+| `trade.void_atr` / `enable_hedge` | no-trade zóna / hedge mód |
+| `signal.dwell_weight` / `flow_weight` | dwell-irány és CVD súlya a kompozitban |
+| `dwell.lookback` / `bins` / `block_pctile` | profil hossza / vödrök / blokk-küszöb |
+| `macro.enabled` / `sessions.enabled` | overlay-k be/ki |
 
 ---
 
 ## Roadmap (következő lépések)
 - [ ] Valós likviditási adat opció (Coinglass / order-book) a proxy mellé
-- [ ] Intraday session-detektor (Ázsia/London/NY) valós időbélyegekkel
+- [x] Intraday session-detektor (Ázsia/London/NY) valós időbélyegekkel
 - [x] Kereskedési réteg: belépő/cél/SL a klaszterekből, R:R ≥ 1:3, pozícióméret
-- [x] „dwell time / dwell block" modul (a videók fő koncepciója)
+- [x] „dwell time / dwell block" modul + irány-szabály
 - [x] Több-tőzsdés élő adat (OKX/Hyperliquid/Binance.US/Coinbase/Kraken) fallbackkel
-- [ ] A trade réteg backtesztelése (entry/stop/target szimuláció a klasztereken)
-- [ ] Walk-forward optimalizálás (az AUTO-OPT helyett, túlillesztés ellen)
+- [x] Money flow / CVD + spot-perp divergencia
+- [x] Tiered MMR, díj+funding nettósítás, void zóna, regime-hedge, tap-count
+- [x] Makró-korreláció overlay (SPX/NDX/DXY/arany/olaj)
+- [ ] A trade réteg teljes backtesztelése (entry/stop/target szimuláció)
+- [ ] Walk-forward optimalizálás (túlillesztés ellen)
 - [ ] Pine: dwell blokkok + trade szintek megjelenítése
-- [ ] HTML/web-dashboard a terminál helyett, riasztások (webhook)
+- [ ] HTML/web-dashboard, riasztások (webhook)
 
 ---
 

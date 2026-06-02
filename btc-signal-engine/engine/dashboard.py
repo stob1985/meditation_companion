@@ -10,8 +10,25 @@ def _c(s, w, align="<"):
     return f"{s:{align}{w}}"[:w]
 
 
+def _leg(L, lbl, t):
+    """Render one directional trade leg."""
+    nrr = t["net_rr"] if t["net_rr"] is not None else t["rr"]
+    L.append(f"   {lbl} {t['side']}   R:R {t['rr']} (net {nrr})  [floor {t['rr_min']:.0f}]")
+    L.append(f"     entry  {t['entry']:>11.1f}")
+    L.append(f"     stop   {t['stop']:>11.1f}   (-{t['risk']:.0f}  ·  {t['stop_src']})")
+    L.append(f"     target {t['target']:>11.1f}   (+{t['reward']:.0f}  ·  {t['target_src']})")
+    L.append(f"     size   bet ${t['bet_usd']:.0f} × {t['leverage']}x = "
+             f"${t['notional']:.0f}  ·  {t['qty']} BTC   (MMR {t['mmr']*100:.2f}%)")
+    L.append(f"     P/L    net win +${t['net_profit']:.2f}   net loss -${t['net_loss']:.2f}   "
+             f"(fees ${t['fees']:.2f} + funding ${t['funding']:.2f})")
+    safe = "OK" if t["liq_safe"] else "⚠ UNSAFE"
+    L.append(f"     liq    {t['liq_price']:>11.1f}   [{safe}]  max safe ~{t['max_safe_leverage']}x")
+    for w in t["warnings"]:
+        L.append(f"     ⚠ {w}")
+
+
 def render(sig: dict, liq: dict, db: dict, cfg: dict,
-           dwell: dict = None, trade: dict = None) -> str:
+           dwell: dict = None, trade: dict = None, overlays: dict = None) -> str:
     H = cfg["signal"]["horizon"]
     L = []
     L.append("=" * 92)
@@ -51,6 +68,9 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
              f"Long/Short {nl}/{ns}   nearest {liq['nearest_atr']} ATR")
     L.append(f"   Liq Imbalance: {liq['imbalance']}    CVD Bias: {liq['cvd_bias']}    "
              f"ATR {liq['atr']}   zones ATR\u00d7{liq['zone_mult']}")
+    fl = sig.get("flow")
+    if fl:
+        L.append(f"   Money Flow (CVD): {fl['bias']}  slope {fl['slope']}  \u00b7  {fl['agree']}")
     tiers = "  ".join(f"{t}x:{liq['tiers_count'][t]}" for t in (10, 25, 50, 100))
     L.append(f"   tiers  {tiers}")
     L.append("   ── magnets ABOVE (short liq / resistance) ──")
@@ -74,28 +94,54 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
             tag = {"above": "▲", "below": "▼", "around": "◆"}.get(b["side"], " ")
             L.append(f"   {tag} {b['lo']:>10.1f} – {b['hi']:<10.1f}  "
                      f"time {b['dwell']:>4.1f}%  vol {b['vol_share']:>4.1f}%")
+        if dwell.get("dwell_bias") and dwell["dwell_bias"] != "NEUTRAL":
+            L.append(f"   ↳ RULE: price {dwell['location']} block → {dwell['dwell_bias']} "
+                     f"(conf {dwell['dwell_conf']})  target {dwell['dwell_target']} "
+                     f"· {dwell['dwell_target_src']}")
         L.append("=" * 92)
 
     # ---- trade plan -----------------------------------------------------
     if trade:
-        if trade["side"] == "FLAT":
-            L.append(f" TRADE PLAN   ⏸  NO TRADE  ·  {trade['reason']}")
+        s = trade["side"]
+        if s in ("FLAT", "VOID"):
+            icon = "⏸" if s == "FLAT" else "🚫"
+            L.append(f" TRADE PLAN   {icon}  NO TRADE ({s})  ·  {trade['reason']}")
+        elif s == "HEDGE":
+            L.append(f" TRADE PLAN   ⇅  HEDGE  ({trade['bias']} {trade['strength']}, "
+                     f"{trade['confluence']})   lean: {trade['net_lean']}")
+            L.append(f"   {trade['reason']}")
+            _leg(L, "▲", trade["long_leg"])
+            _leg(L, "▼", trade["short_leg"])
         else:
-            t = trade
-            L.append(f" TRADE PLAN   {t['side']}  ({t['bias']} {t['strength']}, "
-                     f"liq {t['confluence']})   R:R {t['rr']}  [floor {t['rr_min']:.0f}]")
-            L.append(f"   entry  {t['entry']:>11.1f}")
-            L.append(f"   stop   {t['stop']:>11.1f}   (-{t['risk']:.0f}  ·  {t['stop_src']})")
-            L.append(f"   target {t['target']:>11.1f}   (+{t['reward']:.0f}  ·  {t['target_src']})")
-            L.append(f"   size   bet ${t['bet_usd']:.0f} × {t['leverage']}x = "
-                     f"${t['notional']:.0f} notional  ·  {t['qty']} BTC")
-            L.append(f"   P/L    win +${t['profit_usd']:.2f}   loss -${t['loss_usd']:.2f}   "
-                     f"(risk {t['risk_pct']:.1f}% of bet)")
-            safe = "OK" if t["liq_safe"] else "⚠ UNSAFE"
-            L.append(f"   liq    {t['liq_price']:>11.1f}   [{safe}]  "
-                     f"max safe lev ~{t['max_safe_leverage']}x")
-            for w in t["warnings"]:
-                L.append(f"   ⚠ {w}")
+            L.append(f" TRADE PLAN   ({trade['bias']} {trade['strength']}, "
+                     f"confluence {trade['confluence']}, flow {trade.get('flow','n/a')})")
+            _leg(L, "→", trade)
         L.append("=" * 92)
+
+    # ---- confluence overlays -------------------------------------------
+    if overlays:
+        printed = False
+        mac = overlays.get("macro")
+        if mac:
+            ser = "  ".join(f"{k}:{v['corr']}" for k, v in mac["series"].items()
+                            if v["corr"] is not None)
+            L.append(f" MACRO  bias {mac['bias']} (score {mac['score']})   corr[{ser}]")
+            printed = True
+        fd = overlays.get("flow_div")
+        if fd:
+            tag = "⚠ DIVERGING" if fd["diverging"] else "aligned"
+            L.append(f" SPOT/PERP FLOW  spot {fd['spot']}  perp {fd['perp']}  [{tag}] · {fd['note']}")
+            printed = True
+        se = overlays.get("sessions")
+        if se:
+            if not se.get("intraday"):
+                L.append(f" SESSIONS  {se.get('note','')}")
+            elif se.get("today_pred"):
+                tp = se["today_pred"]; td = se["today"]
+                L.append(f" SESSIONS  Asia {td['asia']:+d} London {td['london']:+d} → "
+                         f"P(NY up)={tp['p_ny_up']}%  (n={tp['n']}, {se['n_days']} days)")
+            printed = True
+        if printed:
+            L.append("=" * 92)
 
     return "\n".join(L)

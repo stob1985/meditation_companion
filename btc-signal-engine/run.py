@@ -10,7 +10,8 @@ from __future__ import annotations
 import argparse
 import yaml
 from engine import (data, events as ev, vdb, signal, liquidity, dashboard,
-                    backtest, dwell as dwellmod, trade as trademod)
+                    backtest, dwell as dwellmod, trade as trademod,
+                    flow as flowmod, macro as macromod, sessions as sessmod)
 
 
 def load_cfg(path="config.yaml"):
@@ -43,13 +44,20 @@ def main():
     events = ev.detect(df, cfg)
     db = vdb.build(df["close"], events, cap=cfg["vdb"]["cap"],
                    horizons=tuple(cfg["vdb"]["horizons"]))
-    sig = signal.composite(df, events, db, cfg, at=-1)
-    liq = liquidity.build(df, cfg)
     dwell = dwellmod.build(df, cfg) if cfg.get("dwell", {}).get("enabled", True) else None
+    sig = signal.composite(df, events, db, cfg, at=-1, dwell=dwell)
+    liq = liquidity.build(df, cfg)
     trade = (trademod.plan(sig, liq, dwell or {}, cfg)
              if cfg.get("trade", {}).get("enabled", True) else None)
 
-    print(dashboard.render(sig, liq, db, cfg, dwell=dwell, trade=trade))
+    # confluence overlays (best-effort / context, not backtested composite inputs)
+    overlays = {}
+    if cfg["data"]["source"] == "live":
+        overlays["flow_div"] = flowmod.okx_spot_perp_divergence()
+    overlays["macro"] = macromod.build(df, cfg)
+    overlays["sessions"] = sessmod.build(df, cfg)
+
+    print(dashboard.render(sig, liq, db, cfg, dwell=dwell, trade=trade, overlays=overlays))
 
     if args.backtest:
         bt = backtest.run(df, events, cfg)

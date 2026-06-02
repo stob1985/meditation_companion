@@ -6,96 +6,94 @@ into a concrete, checkable trade plan:
 
   entry / stop / target   with   R:R >= rr_min (default 1:3)
   position size           with   FIXED collateral (USD) x LEVERAGE  (10/25/50/100x)
-  liquidation price       + a hard check that the STOP triggers BEFORE liquidation.
+  liquidation price       + a hard check that the STOP triggers BEFORE liquidation
+  net P/L                 after taker fees + estimated funding
 
-Level logic
------------
-LONG (bias UP):
-  - stop   = just BELOW the nearest support below price
-             (nearest of: dwell block, liquidity cluster, else ATR fallback).
-  - target = nearest short-liquidation magnet ABOVE that yields >= rr_min;
-             if none reaches it, a projected entry + rr_min*risk level (flagged).
-SHORT (bias DOWN): mirror image.
-FLAT: no trade.
-
-Sizing (fixed bet + leverage, per the user's choice / the video style)
-----------------------------------------------------------------------
-  notional = bet_usd * leverage ;  qty = notional / entry
-  loss_at_stop   = qty * |entry-stop| ;  profit_at_target = qty * |target-entry|
-  liq_price(LONG)  = entry * (1 - 1/lev + mmr)
-  liq_price(SHORT) = entry * (1 + 1/lev + mmr)   # +mmr -> liq sits a touch further out
-Safety: at high leverage the liquidation can sit INSIDE the stop, so the
-position dies before the stop fires. We flag that and compute the max leverage
-tier that keeps liquidation beyond the stop.
+Accuracy / realism upgrades distilled from the ChentoTrades transcript:
+  - TIERED maintenance margin (higher leverage liquidates earlier).
+  - FEES + FUNDING folded into the P/L so expectancy is honest.
+  - VOID / no-trade zones: if price sits in a thin area far from any dwell block
+    or liquidity cluster, there is nothing to trade against -> stand aside.
+  - REGIME HEDGE: in a range / equilibrium (flat MTF, weak bias, mid-block dwell)
+    it returns BOTH a long and a short leg with a net lean, the way the trader
+    hedges when there is no clean swing.
+  - FRESH magnets preferred as targets (heavily-tapped levels are "worn").
 
 NOTE: educational, not financial advice. Proxy liquidity, daily-bar structure.
 """
 from __future__ import annotations
 
 
+def _mmr(lev, cfg):
+    tiers = cfg.get("trade", {}).get("mmr_tiers", {})
+    return float(tiers.get(lev, tiers.get(str(lev), cfg.get("trade", {}).get("mmr", 0.005))))
+
+
 def _nearest_support(price, liq, dwell, side="below"):
-    """Collect candidate support(below)/resistance(above) levels with a label."""
+    """Candidate support(below)/resistance(above) levels with a label."""
     cands = []
     clusters = liq["clusters_below"] if side == "below" else liq["clusters_above"]
     for c in clusters:
         cands.append((c["price"], f"liq x{c['count']} {c['tiers']}"))
-    if not dwell.get("empty", True):
+    if dwell and not dwell.get("empty", True):
         blk = dwell.get("nearest_below") if side == "below" else dwell.get("nearest_above")
         if blk:
             edge = blk["hi"] if side == "below" else blk["lo"]
             cands.append((edge, f"dwell block {blk['lo']}-{blk['hi']} ({blk['dwell']}%)"))
     if side == "below":
         cands = [c for c in cands if c[0] < price]
-        cands.sort(key=lambda x: price - x[0])          # closest below first
+        cands.sort(key=lambda x: price - x[0])
     else:
         cands = [c for c in cands if c[0] > price]
-        cands.sort(key=lambda x: x[0] - price)          # closest above first
+        cands.sort(key=lambda x: x[0] - price)
     return cands
 
 
 def _pick_target(entry, risk, side, liq, dwell, rr_min):
-    """Nearest liquidation magnet that gives >= rr_min; else projected level."""
+    """Nearest qualifying liquidation magnet (>= rr_min), preferring FRESH
+    levels; else fall back to a dwell shift-out target; else a projected level."""
     need = rr_min * risk
-    floor_hi = entry + need if side == "LONG" else None
-    floor_lo = entry - need if side == "SHORT" else None
     mags = liq["clusters_above"] if side == "LONG" else liq["clusters_below"]
     qualifying = []
     for c in mags:
         dist = (c["price"] - entry) if side == "LONG" else (entry - c["price"])
         if dist >= need:
-            qualifying.append((c["price"], dist, f"magnet x{c['count']} {c['tiers']}"))
+            fresh = c.get("fresh", True)
+            taps = c.get("taps", 0)
+            label = f"magnet x{c['count']} {c['tiers']}" + ("" if fresh else f" (worn {taps}x)")
+            qualifying.append((c["price"], dist, fresh, taps, label))
     if qualifying:
-        # nearest qualifying magnet = most achievable structural target
-        qualifying.sort(key=lambda x: x[1])
-        price_, dist_, src = qualifying[0]
+        # nearest achievable magnet wins; worn levels get a mild distance penalty
+        # (they tend to break rather than cleanly reject - "power of three").
+        qualifying.sort(key=lambda x: x[1] * (1.0 if x[2] else 1.25))
+        price_, dist_, fresh_, taps_, src = qualifying[0]
         return price_, src, False
-    # no structural magnet far enough -> project the minimum rr target
-    proj = floor_hi if side == "LONG" else floor_lo
+    # dwell shift-out target if it satisfies rr_min
+    if dwell and not dwell.get("empty") and dwell.get("dwell_target"):
+        dt = dwell["dwell_target"]
+        dist = (dt - entry) if side == "LONG" else (entry - dt)
+        if dist >= need:
+            return round(dt, 1), f"dwell {dwell.get('dwell_target_src', 'shift-out')}", False
+    proj = entry + need if side == "LONG" else entry - need
     return round(proj, 1), f"projected {rr_min:.0f}R (no magnet >= {rr_min:.0f}R)", True
 
 
-def plan(sig: dict, liq: dict, dwell: dict, cfg: dict) -> dict:
+def _build_side(side, price, atr, liq, dwell, cfg):
+    """Core entry/stop/target + sizing + liquidation for one direction."""
     tc = cfg.get("trade", {})
     rr_min = float(tc.get("rr_min", 3.0))
     bet_usd = float(tc.get("bet_usd", 100))
     lev = int(tc.get("leverage", 25))
     tiers = list(tc.get("leverage_tiers", [10, 25, 50, 100]))
-    mmr = float(tc.get("mmr", 0.005))
     buf = float(tc.get("stop_buffer_atr", 0.25))
     fb = float(tc.get("stop_fallback_atr", 1.5))
-
-    price = float(sig["price"])
-    atr = float(liq["atr"])
-    bias = sig["bias"]
+    taker = float(tc.get("taker_fee", 0.0005))
+    fund_d = float(tc.get("funding_daily", 0.0003))
+    hold_d = float(cfg.get("signal", {}).get("horizon", 3))
+    mmr = _mmr(lev, cfg)
     warnings = []
 
-    if bias == "FLAT":
-        return dict(side="FLAT", reason="composite bias is FLAT - stand aside",
-                    bias=bias, strength=sig["strength"])
-
-    side = "LONG" if bias == "UP" else "SHORT"
-
-    # ---- stop from nearest structure -----------------------------------
+    # stop from nearest structure
     sup = _nearest_support(price, liq, dwell, "below" if side == "LONG" else "above")
     if sup:
         anchor, stop_src = sup[0]
@@ -103,25 +101,29 @@ def plan(sig: dict, liq: dict, dwell: dict, cfg: dict) -> dict:
         stop_src = f"{stop_src} {'-' if side == 'LONG' else '+'}{buf}ATR"
     else:
         stop = price - fb * atr if side == "LONG" else price + fb * atr
-        stop_src = f"ATR fallback ({fb}xATR, no structure)"
+        stop_src = f"ATR fallback ({fb}xATR)"
     stop = round(stop, 1)
     risk = abs(price - stop)
     if risk <= 0:
-        return dict(side=side, reason="degenerate stop (risk<=0)", bias=bias)
+        return None
 
-    # ---- target from liquidity magnets ---------------------------------
     target, target_src, projected = _pick_target(price, risk, side, liq, dwell, rr_min)
     reward = abs(target - price)
     rr = round(reward / risk, 2)
 
-    # ---- position sizing: fixed bet x leverage -------------------------
+    # sizing: fixed bet x leverage
     notional = bet_usd * lev
     qty = notional / price
-    loss_usd = qty * risk
-    profit_usd = qty * reward
-    risk_pct = loss_usd / bet_usd * 100
+    gross_loss = qty * risk
+    gross_profit = qty * reward
+    fees = 2 * taker * notional
+    funding = fund_d * notional * hold_d
+    net_profit = gross_profit - fees - funding
+    net_loss = gross_loss + fees + funding
+    net_rr = round(net_profit / net_loss, 2) if net_loss > 0 else None
+    risk_pct = net_loss / bet_usd * 100
 
-    # ---- liquidation + safety -----------------------------------------
+    # liquidation + safety (tiered MMR)
     if side == "LONG":
         liq_price = price * (1 - 1 / lev + mmr)
         liq_dist = price - liq_price
@@ -132,36 +134,105 @@ def plan(sig: dict, liq: dict, dwell: dict, cfg: dict) -> dict:
         liq_safe = stop < liq_price
     liq_price = round(liq_price, 1)
 
-    # max leverage tier that keeps liquidation beyond the stop (with the buffer)
-    stop_move = risk / price                          # fractional distance to stop
+    stop_move = risk / price
     max_lev_raw = 1.0 / (stop_move + mmr) if (stop_move + mmr) > 0 else 0
     safe_tiers = [t for t in tiers if t <= max_lev_raw]
     max_safe_leverage = max(safe_tiers) if safe_tiers else 0
 
     if not liq_safe:
-        warnings.append(
-            f"LIQUIDATION INSIDE STOP at {lev}x: position liquidates at "
-            f"{liq_price} before the stop {stop}. Max safe tier ~{max_safe_leverage}x "
-            f"(raw {max_lev_raw:.0f}x).")
+        warnings.append(f"LIQUIDATION INSIDE STOP at {lev}x: liquidates {liq_price} "
+                        f"before stop {stop}. Max safe ~{max_safe_leverage}x.")
     if projected:
-        warnings.append("Target is a projected R-multiple, not a liquidity magnet "
-                        "- weaker confluence, may not be reached.")
-    if rr < rr_min:
-        warnings.append(f"R:R {rr} is below the {rr_min} floor.")
+        warnings.append("Target is a projected R-multiple, not a magnet - weaker confluence.")
+    if net_rr is not None and net_rr < rr_min:
+        warnings.append(f"NET R:R {net_rr} (after fees/funding) below the {rr_min} floor.")
 
-    # confluence: does the composite agree with the liquidity imbalance?
-    imb = liq["imbalance"]
-    agree = (("BULL" in imb and side == "LONG") or ("BEAR" in imb and side == "SHORT"))
-    confluence = "ALIGNED" if agree else "MIXED"
+    return dict(side=side, entry=round(price, 1), stop=stop, target=target,
+                stop_src=stop_src, target_src=target_src, projected=projected,
+                risk=round(risk, 1), reward=round(reward, 1), rr=rr, net_rr=net_rr,
+                rr_min=rr_min, leverage=lev, bet_usd=bet_usd, mmr=mmr,
+                notional=round(notional, 1), qty=round(qty, 6),
+                gross_profit=round(gross_profit, 2), gross_loss=round(gross_loss, 2),
+                fees=round(fees, 2), funding=round(funding, 2),
+                net_profit=round(net_profit, 2), net_loss=round(net_loss, 2),
+                risk_pct=round(risk_pct, 1),
+                liq_price=liq_price, liq_safe=liq_safe, liq_dist=round(liq_dist, 1),
+                max_safe_leverage=max_safe_leverage, warnings=warnings)
 
-    return dict(
-        side=side, bias=bias, strength=sig["strength"], confluence=confluence,
-        entry=round(price, 1), stop=stop, target=target,
-        stop_src=stop_src, target_src=target_src, projected=projected,
-        risk=round(risk, 1), reward=round(reward, 1), rr=rr, rr_min=rr_min,
-        leverage=lev, bet_usd=bet_usd, notional=round(notional, 1), qty=round(qty, 6),
-        loss_usd=round(loss_usd, 2), profit_usd=round(profit_usd, 2),
-        risk_pct=round(risk_pct, 1),
-        liq_price=liq_price, liq_safe=liq_safe, liq_dist=round(liq_dist, 1),
-        max_safe_leverage=max_safe_leverage,
-        dwell_state=dwell.get("state"), warnings=warnings)
+
+def plan(sig: dict, liq: dict, dwell: dict, cfg: dict) -> dict:
+    tc = cfg.get("trade", {})
+    void_atr = float(tc.get("void_atr", 2.0))
+    price = float(sig["price"])
+    atr = float(liq["atr"])
+    bias = sig["bias"]
+    dwell = dwell or {}
+
+    # ---- confluence read (dwell rule + CVD flow + liquidity imbalance) ----
+    conf_parts = []
+    db = dwell.get("dwell_bias") if not dwell.get("empty") else None
+    if db and db != "NEUTRAL":
+        conf_parts.append(("dwell", db))
+    fl = sig.get("flow", {})
+    if fl.get("bias") in ("LONG", "SHORT"):
+        conf_parts.append(("flow", "UP" if fl["bias"] == "LONG" else "DOWN"))
+    imb = liq.get("imbalance", "")
+    if "BULL" in imb:
+        conf_parts.append(("liq", "UP"))
+    elif "BEAR" in imb:
+        conf_parts.append(("liq", "DOWN"))
+
+    def _confluence(side_dir):
+        agree = sum(1 for _, d in conf_parts if d == side_dir)
+        total = len(conf_parts)
+        return f"{agree}/{total} aligned" if total else "n/a"
+
+    if bias == "FLAT":
+        return dict(side="FLAT", reason="composite bias is FLAT - stand aside",
+                    bias=bias, strength=sig["strength"])
+
+    # ---- void / no-trade zone --------------------------------------------
+    d_clu = None
+    nb = (liq["clusters_above"] + liq["clusters_below"])
+    if nb:
+        d_clu = min(abs(c["price"] - price) for c in nb)
+    inside_block = bool(dwell.get("ref_block") and dwell.get("location") == "MID")
+    if dwell.get("ref_block") and not inside_block:
+        rb = dwell["ref_block"]
+        d_blk = min(abs(price - rb["lo"]), abs(price - rb["hi"]))
+    else:
+        d_blk = 0.0 if inside_block else None
+    dists = [x for x in (d_clu, d_blk) if x is not None]
+    nearest_struct = min(dists) / atr if dists else 99.0
+    if nearest_struct > void_atr:
+        return dict(side="VOID", reason=f"no structure within {void_atr} ATR "
+                    f"(nearest {nearest_struct:.1f} ATR) - travel zone, stand aside",
+                    bias=bias, strength=sig["strength"])
+
+    side = "LONG" if bias == "UP" else "SHORT"
+
+    # ---- regime hedge: range / equilibrium -> trade both sides -----------
+    range_regime = (abs(sig.get("mtf", 0)) <= 1) and sig["strength"] in ("WEAK", "MODERATE")
+    coiling_mid = (dwell.get("state") == "COILING" and dwell.get("location") == "MID")
+    if tc.get("enable_hedge", True) and (range_regime or coiling_mid):
+        long_leg = _build_side("LONG", price, atr, liq, dwell, cfg)
+        short_leg = _build_side("SHORT", price, atr, liq, dwell, cfg)
+        if long_leg and short_leg:
+            # net lean by composite distance from 50
+            lean = sig["up"] - 50.0
+            ratio = "balanced" if abs(lean) < 3 else (
+                f"net {'long' if lean > 0 else 'short'} "
+                f"{max(1, round(abs(lean) / 3))}:1")
+            return dict(side="HEDGE", bias=bias, strength=sig["strength"],
+                        reason=("range/equilibrium - no clean swing; hedge both sides"),
+                        net_lean=ratio, long_leg=long_leg, short_leg=short_leg,
+                        confluence=_confluence(side), dwell_state=dwell.get("state"))
+
+    out = _build_side(side, price, atr, liq, dwell, cfg)
+    if out is None:
+        return dict(side=side, reason="degenerate stop (risk<=0)", bias=bias)
+    out.update(bias=bias, strength=sig["strength"],
+               confluence=_confluence("UP" if side == "LONG" else "DOWN"),
+               dwell_state=dwell.get("state"),
+               flow=fl.get("agree", "n/a"))
+    return out
