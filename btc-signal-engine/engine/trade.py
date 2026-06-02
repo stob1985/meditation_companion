@@ -49,9 +49,24 @@ def _nearest_support(price, liq, dwell, side="below"):
     return cands
 
 
-def _pick_target(entry, risk, side, liq, dwell, rr_min):
-    """Nearest qualifying liquidation magnet (>= rr_min), preferring FRESH
-    levels; else fall back to a dwell shift-out target; else a projected level."""
+def _pick_target(entry, risk, side, liq, dwell, rr_min, mode="rr", atr=None):
+    """Pick the target liquidation cluster.
+    mode 'rr'      : nearest magnet that meets R:R >= rr_min (then dwell/projected).
+    mode 'nearest' : the nearest cluster in the trade direction regardless of R:R
+                     (data shows the nearest directional cluster is reached most
+                     often at high conviction). Keeps a small ATR floor."""
+    mags = liq["clusters_above"] if side == "LONG" else liq["clusters_below"]
+    if mode == "nearest":
+        floor = 0.3 * atr if atr else 0.0
+        cand = []
+        for c in mags:
+            dist = (c["price"] - entry) if side == "LONG" else (entry - c["price"])
+            if dist >= floor:
+                cand.append((c["price"], dist, f"nearest x{c['count']} {c['tiers']}"))
+        if cand:
+            cand.sort(key=lambda x: x[1])
+            return cand[0][0], cand[0][2], False
+        # fall through to projected if nothing usable
     need = rr_min * risk
     mags = liq["clusters_above"] if side == "LONG" else liq["clusters_below"]
     qualifying = []
@@ -108,7 +123,9 @@ def _build_side(side, price, atr, liq, dwell, cfg, bet_override=None):
     if risk <= 0:
         return None
 
-    target, target_src, projected = _pick_target(price, risk, side, liq, dwell, rr_min)
+    target, target_src, projected = _pick_target(
+        price, risk, side, liq, dwell, rr_min,
+        mode=tc.get("target_mode", "rr"), atr=atr)
     reward = abs(target - price)
     rr = round(reward / risk, 2)
 
@@ -211,6 +228,13 @@ def plan(sig: dict, liq: dict, dwell: dict, cfg: dict) -> dict:
                     bias=bias, strength=sig["strength"])
 
     side = "LONG" if bias == "UP" else "SHORT"
+
+    # ---- regime filter: don't fight a STRONG trend ----------------------
+    if tc.get("regime_filter", False):
+        reg = sig.get("regime", "")
+        if (side == "LONG" and reg == "STRONG BEAR") or (side == "SHORT" and reg == "STRONG BULL"):
+            return dict(side="REGIME-VETO", bias=bias, strength=sig["strength"],
+                        reason=f"bias {bias} fights regime {reg} - stand aside")
 
     # ---- regime hedge: range / equilibrium -> trade both sides -----------
     range_regime = (abs(sig.get("mtf", 0)) <= 1) and sig["strength"] in ("WEAK", "MODERATE")

@@ -84,6 +84,17 @@ def composite(df: pd.DataFrame, events: pd.DataFrame, db: dict, cfg: dict,
         up = (up * w_total + fl["up"] * fl_w) / (w_total + fl_w)
         w_total += fl_w
 
+    # regime / trend (multi-EMA agreement) folded in - keeps the composite from
+    # leaning against a strong trend (e.g. going long into a STRONG BEAR)
+    rw = float(cfg["signal"].get("regime_weight", 0.0))
+    if rw > 0:
+        px0 = float(df["close"].iloc[at])
+        emas0 = [df["close"].ewm(span=s).mean().iloc[at] for s in (10, 20, 50, 100, 200)]
+        mtf0 = sum(1 if px0 > e else -1 for e in emas0)
+        reg_up = 0.5 + (mtf0 / 5.0) * 0.5              # -5..5 -> 0..1
+        up = (up * w_total + reg_up * rw) / (w_total + rw)
+        w_total += rw
+
     up_pct = round(up * 100, 1)
     dn_pct = round(100 - up_pct, 1)
     bias = "UP" if up_pct > 52 else "DOWN" if up_pct < 48 else "FLAT"
