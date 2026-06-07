@@ -52,7 +52,7 @@ def main():
              if cfg.get("trade", {}).get("enabled", True) else None)
 
     # confluence overlays (best-effort / context, not backtested composite inputs)
-    overlays = {}
+    overlays = {"zones": trademod.zones(df, sig, liq, cfg)}
     if cfg["data"]["source"] == "live":
         overlays["flow_div"] = flowmod.okx_spot_perp_divergence()
         if cfg.get("liquidity", {}).get("multi_venue", True):

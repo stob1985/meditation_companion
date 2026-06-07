@@ -161,6 +161,36 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
                      f"x{c['count']:<3} {c['tiers']}  [{','.join(v[:3] for v in c['venues'])}]")
         L.append("=" * 92)
 
+    # ---- BUY / SHORT zones (always shown) ------------------------------
+    if overlays and overlays.get("zones"):
+        z = overlays["zones"]
+
+        def _zline(tag, zz, kind):
+            if not zz:
+                return f"   {tag}: n/a (nincs klaszter ezen az oldalon)"
+            q = []
+            if not zz["fresh"]:
+                q.append(f"⚠ kopott {zz['taps']}x")
+            if zz["just_tested"]:
+                q.append("⚠ frissen tesztelve")
+            qa = ("  [" + ", ".join(q) + "]") if q else "  [friss ✓]"
+            tgt = f"{zz['target']:,.0f}" if zz["target"] else "n/a"
+            return (f"   {tag}: {zz['lo']:,.0f}–{zz['hi']:,.0f}  ({zz['dist_atr']} ATR, x{zz['count']})"
+                    f"  → cél {tgt}  stop {zz['stop']:,.0f}{qa}")
+
+        def _show_clean(prim, clean):
+            return (prim and (not prim["fresh"] or prim["just_tested"]) and clean
+                    and clean["level"] != prim["level"] and (clean["dist_atr"] or 99) <= 6)
+
+        L.append(" ZONES (mindig)")
+        L.append(_zline("🔴 SHORT (rally eladása)", z.get("short"), "short"))
+        if _show_clean(z.get("short"), z.get("short_clean")):
+            L.append(_zline("      ↳ tisztább SHORT", z.get("short_clean"), "short"))
+        L.append(_zline("🟢 BUY   (dip vétele)", z.get("buy"), "buy"))
+        if _show_clean(z.get("buy"), z.get("buy_clean")):
+            L.append(_zline("      ↳ tisztább BUY", z.get("buy_clean"), "buy"))
+        L.append("=" * 92)
+
     # ---- confluence overlays -------------------------------------------
     if overlays:
         printed = False

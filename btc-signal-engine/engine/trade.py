@@ -22,6 +22,57 @@ Accuracy / realism upgrades distilled from the ChentoTrades transcript:
 NOTE: educational, not financial advice. Proxy liquidity, daily-bar structure.
 """
 from __future__ import annotations
+from .liquidity import _r
+
+
+def zones(df, sig: dict, liq: dict, cfg: dict) -> dict:
+    """ALWAYS identify a BUY zone and a SHORT zone (forward-looking).
+
+    SHORT zone = nearest resistance cluster ABOVE (sell the rally there).
+    BUY  zone = nearest support cluster BELOW (buy the dip there).
+    Picks the nearest FRESH (low tap-count) cluster, flags a level as 'worn'
+    (re-tested -> weaker, power-of-three) and 'just tested' (price hit it in the
+    last 5 bars -> the bounce may already be consumed). Target = opposite
+    nearest cluster; stop just beyond the zone.
+    """
+    px = float(sig["price"]); atr = float(liq["atr"]); b = 0.3 * atr
+    above = sorted(liq["clusters_above"], key=lambda c: c["price"])    # nearest above first
+    below = sorted(liq["clusters_below"], key=lambda c: -c["price"])   # nearest below first
+    rlo = float(df["low"].tail(5).min()); rhi = float(df["high"].tail(5).max())
+
+    def _best(lst):
+        # nearest actionable cluster; quality (fresh/worn/just-tested) is flagged,
+        # not skipped - a far 'fresh' level is useless as a zone.
+        return lst[0] if lst else None
+
+    def _mk(c, side):
+        if not c:
+            return None
+        p = c["price"]
+        if side == "short":
+            zlo, zhi, stop = p, _r(p + b), _r(p + 0.6 * atr)
+            target = below[0]["price"] if below else None
+            just_tested = rhi >= p
+        else:
+            zlo, zhi, stop = _r(p - b), p, _r(p - 0.6 * atr)
+            target = above[0]["price"] if above else None
+            just_tested = rlo <= p
+        return dict(lo=zlo, hi=zhi, level=p, stop=stop, target=target,
+                    dist_atr=round(abs(p - px) / atr, 1) if atr else None,
+                    fresh=c.get("fresh", True), taps=c.get("taps", 0),
+                    count=c["count"], just_tested=bool(just_tested))
+
+    def _clean(lst, side):
+        # nearest cluster that is fresh AND not just-tested (a clean, unused level)
+        for c in lst:
+            jt = (rhi >= c["price"]) if side == "short" else (rlo <= c["price"])
+            if c.get("fresh", True) and not jt:
+                return _mk(c, side)
+        return None
+
+    return dict(price=px,
+                short=_mk(_best(above), "short"), buy=_mk(_best(below), "buy"),
+                short_clean=_clean(above, "short"), buy_clean=_clean(below, "buy"))
 
 
 def _mmr(lev, cfg):
