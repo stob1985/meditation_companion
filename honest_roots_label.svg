@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1750" viewBox="0 0 1500 1750" font-family="Helvetica, Arial, sans-serif">
+  <rect width="1500" height="1750" fill="#eef4f6"/>
+
+  <!-- Title -->
+  <text x="60" y="80" font-size="40" font-weight="700" fill="#10302e">Honest Roots — Women's Core</text>
+  <text x="60" y="125" font-size="24" fill="#3a5a57">Hair-wellness supplement · Every milligram on the label · No proprietary blends</text>
+
+  <!-- ================= LEFT: Supplement Facts panel ================= -->
+  <g>
+    <rect x="60" y="160" width="760" height="1010" fill="#ffffff" stroke="#000" stroke-width="3"/>
+    <text x="90" y="235" font-size="52" font-weight="800" fill="#000" letter-spacing="2">Supplement Facts</text>
+    <line x1="90" y1="252" x2="790" y2="252" stroke="#000" stroke-width="2"/>
+    <text x="90" y="288" font-size="24" fill="#000">Serving Size: 3 units (2 softgels + 1 capsule)</text>
+    <text x="90" y="318" font-size="24" fill="#000">Servings Per Container: 30</text>
+    <line x1="90" y1="338" x2="790" y2="338" stroke="#000" stroke-width="9"/>
+
+    <text x="560" y="372" font-size="22" font-weight="700" fill="#000">Amount Per Serving</text>
+    <text x="730" y="372" font-size="22" font-weight="700" fill="#000">%DV</text>
+    <line x1="90" y1="386" x2="790" y2="386" stroke="#000" stroke-width="2"/>
+
+    <!-- rows -->
+    <g font-size="24" fill="#000">
+      <text x="90" y="424">Vitamin C (as Ascorbic Acid)</text>
+      <text x="640" y="424" text-anchor="end">90 mg</text><text x="780" y="424" text-anchor="end">100%</text>
+      <line x1="90" y1="440" x2="790" y2="440" stroke="#000" stroke-width="1"/>
+
+      <text x="90" y="476">Vitamin D3 (as Cholecalciferol)</text>
+      <text x="660" y="476" text-anchor="end">25 mcg</text><text x="780" y="476" text-anchor="end">125%</text>
+      <text x="90" y="504" font-size="19" fill="#333">(1000 IU)</text>
+      <line x1="90" y1="520" x2="790" y2="520" stroke="#000" stroke-width="1"/>
+
+      <text x="90" y="556">Zinc (as Bisglycinate Chelate)</text>
+      <text x="640" y="556" text-anchor="end">15 mg</text><text x="780" y="556" text-anchor="end">136%</text>
+      <line x1="90" y1="572" x2="790" y2="572" stroke="#000" stroke-width="1"/>
+
+      <text x="90" y="608">Selenium (as L-Selenomethionine)</text>
+      <text x="660" y="608" text-anchor="end">55 mcg</text><text x="780" y="608" text-anchor="end">100%</text>
+      <line x1="90" y1="624" x2="790" y2="624" stroke="#000" stroke-width="1"/>
+
+      <text x="90" y="660">Copper (as Bisglycinate)</text>
+      <text x="650" y="660" text-anchor="end">1 mg</text><text x="780" y="660" text-anchor="end">111%</text>
+      <line x1="90" y1="676" x2="790" y2="676" stroke="#000" stroke-width="1"/>
+
+      <text x="90" y="712">Biotin (as D-Biotin)</text>
+      <text x="650" y="712" text-anchor="end">300 mcg</text><text x="780" y="712" text-anchor="end">1000%</text>
+      <line x1="90" y1="728" x2="790" y2="728" stroke="#000" stroke-width="9"/>
+
+      <!-- Disclosed actives, no blend -->
+      <text x="90" y="766">Saw Palmetto Extract (Fruit)</text>
+      <text x="640" y="766" text-anchor="end">320 mg</text><text x="780" y="766" text-anchor="end">&#8224;</text>
+      <text x="90" y="792" font-size="19" fill="#333">(CO&#8322; extract, 85&#8211;95% free fatty acids)</text>
+      <line x1="90" y1="808" x2="790" y2="808" stroke="#000" stroke-width="1"/>
+
+      <text x="90" y="844">Pumpkin Seed Oil (Seed)</text>
+      <text x="640" y="844" text-anchor="end">400 mg</text><text x="780" y="844" text-anchor="end">&#8224;</text>
+      <line x1="90" y1="860" x2="790" y2="860" stroke="#000" stroke-width="1"/>
+
+      <text x="90" y="896">Mixed Tocotrienols (Palm)</text>
+      <text x="640" y="896" text-anchor="end">50 mg</text><text x="780" y="896" text-anchor="end">&#8224;</text>
+      <line x1="90" y1="912" x2="790" y2="912" stroke="#000" stroke-width="1"/>
+
+      <text x="90" y="948">L-Cysteine</text>
+      <text x="640" y="948" text-anchor="end">200 mg</text><text x="780" y="948" text-anchor="end">&#8224;</text>
+      <line x1="90" y1="964" x2="790" y2="964" stroke="#000" stroke-width="9"/>
+    </g>
+
+    <text x="90" y="998" font-size="19" fill="#000">* Percent Daily Values are based on a 2,000 calorie diet.</text>
+    <text x="90" y="1024" font-size="19" fill="#000">&#8224; Daily Value (DV) not established.</text>
+
+    <text x="90" y="1066" font-size="19" font-weight="700" fill="#000">OTHER INGREDIENTS:</text>
+    <text x="90" y="1092" font-size="19" fill="#000">Softgel (bovine gelatin, glycerin, purified water),</text>
+    <text x="90" y="1116" font-size="19" fill="#000">vegetable capsule (hypromellose), organic rice hull,</text>
+    <text x="90" y="1140" font-size="19" fill="#000">mixed tocopherols (antioxidant).</text>
+  </g>
+
+  <!-- ================= RIGHT: differentiators + warnings ================= -->
+  <g>
+    <!-- transparency badge -->
+    <rect x="860" y="160" width="580" height="118" rx="14" fill="#10302e"/>
+    <text x="1150" y="218" font-size="30" font-weight="800" fill="#ffffff" text-anchor="middle">FULL-DOSE TRANSPARENCY</text>
+    <text x="1150" y="256" font-size="24" fill="#bfe0db" text-anchor="middle">No proprietary blends · Every mg shown</text>
+
+    <!-- free-from row -->
+    <g font-size="24" font-weight="700" fill="#10302e">
+      <text x="880" y="330">GLUTEN-FREE</text>
+      <text x="1120" y="330">DAIRY-FREE</text>
+      <text x="880" y="372">SOY-FREE</text>
+      <text x="1120" y="372">NON-GMO</text>
+    </g>
+    <line x1="860" y1="398" x2="1440" y2="398" stroke="#9cb8b4" stroke-width="2"/>
+
+    <!-- vs Nutrafol -->
+    <text x="860" y="446" font-size="28" font-weight="800" fill="#10302e">Why it beats the $88 brand</text>
+    <g font-size="23" fill="#1c3b38">
+      <text x="860" y="492">&#10003;  ~Half the price ($45/mo vs ~$88)</text>
+      <text x="860" y="530">&#10003;  Saw palmetto dosed at the researched 320 mg</text>
+      <text x="860" y="568">&#10003;  No maca (hot-flush trigger in 45+ HRT users)</text>
+      <text x="860" y="606">&#10003;  Lab-friendly biotin (300 mcg, not 2,500 mcg)</text>
+      <text x="860" y="644">&#10003;  No added iodine · selenium at the safe RDA</text>
+      <text x="860" y="682">&#10003;  Zinc balanced with copper</text>
+      <text x="860" y="720">&#10003;  One-click cancel, 60-day money-back</text>
+    </g>
+    <line x1="860" y1="754" x2="1440" y2="754" stroke="#9cb8b4" stroke-width="2"/>
+
+    <!-- optional add-ons -->
+    <text x="860" y="800" font-size="26" font-weight="800" fill="#10302e">Optional opt-in add-ons</text>
+    <g font-size="22" fill="#1c3b38">
+      <text x="860" y="842">+ Ashwagandha (Sensoril) 125 mg &#8212; stress shedding</text>
+      <text x="860" y="876">+ Iron (bisglycinate) 9 mg &#8212; only if ferritin is low</text>
+      <text x="860" y="910">+ Collagen+ scoop 2.5 g &#8212; dosed for real (separate)</text>
+    </g>
+    <line x1="860" y1="944" x2="1440" y2="944" stroke="#9cb8b4" stroke-width="2"/>
+
+    <!-- warnings -->
+    <rect x="860" y="968" width="580" height="200" rx="12" fill="#fff4f2" stroke="#c0584a" stroke-width="2"/>
+    <text x="880" y="1004" font-size="22" font-weight="800" fill="#9c2a1c">WARNINGS</text>
+    <g font-size="18.5" fill="#5a1f17">
+      <text x="880" y="1036">Do not use if pregnant, may become pregnant, or</text>
+      <text x="880" y="1060">breastfeeding. Consult your doctor if you take blood</text>
+      <text x="880" y="1084">thinners, hormonal birth control/HRT, or thyroid meds,</text>
+      <text x="880" y="1108">or before surgery (stop &#8805;2 weeks prior). May affect</text>
+      <text x="880" y="1132">certain lab tests &#8212; tell your clinician. Take with food.</text>
+    </g>
+  </g>
+
+  <!-- ================= Footer compliance ================= -->
+  <line x1="60" y1="1230" x2="1440" y2="1230" stroke="#9cb8b4" stroke-width="2"/>
+  <text x="60" y="1276" font-size="22" font-weight="700" fill="#10302e">Structure/function support: helps maintain thicker-looking, fuller-looking hair &amp; supports the body's healthy response to everyday stress.</text>
+  <text x="60" y="1320" font-size="20" font-style="italic" fill="#445b58">"These statements have not been evaluated by the Food and Drug Administration. This product is not intended to</text>
+  <text x="60" y="1348" font-size="20" font-style="italic" fill="#445b58">diagnose, treat, cure, or prevent any disease."</text>
+
+  <text x="60" y="1410" font-size="18" fill="#6b7f7c">Concept / educational mockup &#8212; not a real product label. Doses, claims &amp; warnings must be verified by a formulator + FDA/FTC counsel before any commercial use.</text>
+
+  <!-- Suggested retail callout -->
+  <rect x="60" y="1450" width="1380" height="250" rx="16" fill="#ffffff" stroke="#10302e" stroke-width="2"/>
+  <text x="90" y="1510" font-size="30" font-weight="800" fill="#10302e">Suggested retail</text>
+  <g font-size="26" fill="#1c3b38">
+    <text x="90" y="1562">Women's Core / Balance &#8212; <tspan font-weight="800">$45/mo</tspan> subscribe ($55 one-time) &#183; 3-mo plan $39/mo-equiv</text>
+    <text x="90" y="1606">Collagen+ scoop &#8212; <tspan font-weight="800">$25/mo</tspan> (+$18 as a bundle add-on)</text>
+    <text x="90" y="1650">Add-ons (Ashwagandha / Iron) &#8212; a few $ &#183; cancel anytime, no lock-in</text>
+  </g>
+  <text x="90" y="1686" font-size="22" font-weight="800" fill="#10302e" font-style="italic">"Every milligram on the label. Half the price. None of the fluff."</text>
+</svg>
