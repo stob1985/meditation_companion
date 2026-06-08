@@ -51,25 +51,28 @@ void main() {
       );
     }
 
-    // The board uses an indefinite CircularProgressIndicator for the initial
-    // state and AnimatedContainers for the tiles, so pumpAndSettle is avoided
-    // in favour of explicit pumps with fixed durations.
-    Future<void> settle(WidgetTester tester) async {
-      await tester.pump(); // deliver the latest bloc state
-      await tester.pump(const Duration(milliseconds: 300)); // finish animations
+    // Bloc events are processed on the real event loop, which the fake-async
+    // test clock does not advance via pump() alone. runAsync lets the bloc
+    // handle the queued event and emit, then pump() renders the new state and
+    // settles the tile AnimatedContainers.
+    Future<void> process(WidgetTester tester) async {
+      await tester
+          .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
     }
 
     /// Starts the game (status -> playing) and lets the UI settle.
     Future<void> startGame(WidgetTester tester) async {
       await tester.pumpWidget(buildSubject());
       bloc.add(const GameStarted(pairCount: 2));
-      await settle(tester);
+      await process(tester);
     }
 
     /// Taps the card with [id] and settles the resulting animations.
     Future<void> tapCard(WidgetTester tester, int id) async {
       await tester.tap(find.byKey(ValueKey('card_$id')));
-      await settle(tester);
+      await process(tester);
     }
 
     testWidgets('shows a progress indicator before a game starts',
@@ -122,7 +125,7 @@ void main() {
       expect(find.text('A'), findsOneWidget);
 
       await tester.tap(refreshFinder);
-      await settle(tester);
+      await process(tester);
 
       expect(find.text('A'), findsNothing);
       expect(find.text('Moves: 0'), findsOneWidget);
