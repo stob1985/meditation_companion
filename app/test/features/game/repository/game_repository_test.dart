@@ -1,7 +1,6 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:meditation_companion/features/game/models/game_card.dart';
 import 'package:meditation_companion/features/game/repository/game_repository.dart';
 
 void main() {

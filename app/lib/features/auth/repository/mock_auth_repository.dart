@@ -90,8 +90,8 @@ class MockAuthRepository implements AuthRepository {
       throw AuthException.userNotFound();
     }
 
-    // In a real implementation, this would send an email
-    print('Password reset email sent to $email');
+    // In a real implementation, this would send an email.
+    // Intentionally no logging here to avoid leaking the user's email.
   }
 
   @override
