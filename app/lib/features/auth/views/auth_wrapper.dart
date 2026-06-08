@@ -4,6 +4,7 @@ import 'package:meditation_companion/features/auth/bloc/auth_bloc.dart';
 import 'package:meditation_companion/features/auth/bloc/auth_event.dart';
 import 'package:meditation_companion/features/auth/bloc/auth_state.dart';
 import 'package:meditation_companion/features/auth/views/login_screen.dart';
+import 'package:meditation_companion/features/game/views/game_view.dart';
 
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
@@ -40,8 +41,20 @@ class AuthWrapper extends StatelessWidget {
                 ),
               ],
             ),
-            body: const Center(
-              child: Text('Welcome! You are logged in.'),
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('Welcome! You are logged in.'),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.spa),
+                    label: const Text('Play Memory Match'),
+                    onPressed: () =>
+                        Navigator.of(context).push(GameView.route()),
+                  ),
+                ],
+              ),
             ),
           );
         }
