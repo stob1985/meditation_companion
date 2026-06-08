@@ -33,7 +33,7 @@ void main() {
     setUp(() {
       bloc = GameBloc(
         gameRepository: _FakeGameRepository(),
-        // Keep the mismatch reveal short so pumpAndSettle resolves quickly.
+        // Keep the mismatch reveal short for fast, deterministic settling.
         mismatchDelay: const Duration(milliseconds: 10),
       );
     });
@@ -51,11 +51,25 @@ void main() {
       );
     }
 
+    // The board uses an indefinite CircularProgressIndicator for the initial
+    // state and AnimatedContainers for the tiles, so pumpAndSettle is avoided
+    // in favour of explicit pumps with fixed durations.
+    Future<void> settle(WidgetTester tester) async {
+      await tester.pump(); // deliver the latest bloc state
+      await tester.pump(const Duration(milliseconds: 300)); // finish animations
+    }
+
     /// Starts the game (status -> playing) and lets the UI settle.
     Future<void> startGame(WidgetTester tester) async {
       await tester.pumpWidget(buildSubject());
       bloc.add(const GameStarted(pairCount: 2));
-      await tester.pumpAndSettle();
+      await settle(tester);
+    }
+
+    /// Taps the card with [id] and settles the resulting animations.
+    Future<void> tapCard(WidgetTester tester, int id) async {
+      await tester.tap(find.byKey(ValueKey('card_$id')));
+      await settle(tester);
     }
 
     testWidgets('shows a progress indicator before a game starts',
@@ -90,8 +104,7 @@ void main() {
       // Symbols are hidden while face down.
       expect(find.text('A'), findsNothing);
 
-      await tester.tap(find.byKey(const ValueKey('card_0')));
-      await tester.pump();
+      await tapCard(tester, 0);
 
       // Card 0 carries symbol 'A' and should now be visible.
       expect(find.text('A'), findsOneWidget);
@@ -105,12 +118,11 @@ void main() {
       expect(refreshFinder, findsOneWidget);
 
       // Reveal one card, then reset; the symbol should be hidden again.
-      await tester.tap(find.byKey(const ValueKey('card_0')));
-      await tester.pump();
+      await tapCard(tester, 0);
       expect(find.text('A'), findsOneWidget);
 
       await tester.tap(refreshFinder);
-      await tester.pumpAndSettle();
+      await settle(tester);
 
       expect(find.text('A'), findsNothing);
       expect(find.text('Moves: 0'), findsOneWidget);
@@ -122,16 +134,12 @@ void main() {
       await startGame(tester);
 
       // Match the first pair (A: ids 0 & 1).
-      await tester.tap(find.byKey(const ValueKey('card_0')));
-      await tester.pump();
-      await tester.tap(find.byKey(const ValueKey('card_1')));
-      await tester.pumpAndSettle();
+      await tapCard(tester, 0);
+      await tapCard(tester, 1);
 
       // Match the second pair (B: ids 2 & 3) -> game won.
-      await tester.tap(find.byKey(const ValueKey('card_2')));
-      await tester.pump();
-      await tester.tap(find.byKey(const ValueKey('card_3')));
-      await tester.pumpAndSettle();
+      await tapCard(tester, 2);
+      await tapCard(tester, 3);
 
       expect(find.text('🎉 You won in 2 moves!'), findsOneWidget);
       expect(find.widgetWithText(ElevatedButton, 'Play again'), findsOneWidget);

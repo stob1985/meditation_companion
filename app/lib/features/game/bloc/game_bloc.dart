@@ -59,11 +59,15 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       state.cards,
       (c) => c.id == event.cardId ? c.copyWith(isFlipped: true) : c,
     );
-    emit(state.copyWith(cards: revealed));
 
     final nowFaceUp =
         revealed.where((c) => c.isFlipped && !c.isMatched).toList();
-    if (nowFaceUp.length < 2) return;
+
+    // First card of the turn: just reveal it and wait for the second tap.
+    if (nowFaceUp.length < 2) {
+      emit(state.copyWith(cards: revealed));
+      return;
+    }
 
     // A turn is completed once the second card is revealed.
     final moves = state.moves + 1;
