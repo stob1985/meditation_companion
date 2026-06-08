@@ -33,6 +33,7 @@ signal:
   flow_weight: 1.0       # weight of the money-flow / CVD lean
   regime_weight: 2.5     # weight of the trend/regime lean - keeps the composite with
                          # the trend (ref dashboard applies this as '0up/6down after regime')
+  reversal_weight: 3.0   # weight of the sweep-reclaim reversal (can override regime at a turn)
   base_weights:
     "Saturday + TOM": 1.0
     "Pivot": 1.0
@@ -87,6 +88,13 @@ dwell:
   current_tol_atr: 0.5   # band (in ATR) for the current-dwell / coiling gauge
 
 # ---- confluence overlays (context; not backtested composite inputs) -------
+# ---- sweep-reclaim reversal (video: 'liquidity sweep of the lows -> reversal') --
+reversal:
+  swing_lookback: 10     # window for the prior swing low/high that gets swept
+  confirm_bars: 3        # look this many recent bars for the sweep+reclaim
+  rsi_os: 38             # oversold gate for a bullish reclaim
+  rsi_ob: 62             # overbought gate for a bearish reject
+
 macro:
   enabled: true          # best-effort: BTC vs SPX/NDX/DXY/gold/oil (Stooq)
 sessions:

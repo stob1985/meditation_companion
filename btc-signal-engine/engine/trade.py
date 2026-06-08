@@ -246,6 +246,42 @@ def plan_levels(sig: dict, liq: dict, dwell: dict, cfg: dict) -> dict:
     price = float(sig["price"]); atr = float(liq["atr"]); bias = sig["bias"]
     conv = sig["up"] if bias == "UP" else sig["dn"] if bias == "DOWN" else 0.0
 
+    # sweep-reclaim reversal takes priority - this is the trader's "buy the
+    # liquidity sweep" setup that a pure trend model misses.
+    rev = sig.get("reversal") or {}
+    if rev.get("signal") == "BULL":
+        swept = rev["level"]
+        stop = round(swept - buf * atr, 1)
+        res = sorted(c["price"] for c in liq["clusters_above"] if c["price"] > price)
+        t1 = res[0] if res else round(price + 2 * atr, 1)
+        t2 = res[1] if len(res) > 1 else t1
+        risk = abs(price - stop) or 1.0
+        return dict(side="LONG", mode="reversal", bias="REVERSAL-UP", conv=round(conv, 1),
+                    strength="sweep-reclaim", entry=round(price, 1), entry_type="MARKET (reclaim)",
+                    pullback_atr=0.0, stop=stop, risk=round(risk, 1),
+                    t1=round(t1, 1), t2=round(t2, 1),
+                    rr1=round(abs(t1 - price) / risk, 2), rr2=round(abs(t2 - price) / risk, 2),
+                    bet_usd=bet, leverage=lev, notional=round(bet * lev, 1), qty=round(bet * lev / price, 6),
+                    liq_price=round(price * (1 - 1 / lev + mmr), 1),
+                    liq_safe=(stop > price * (1 - 1 / lev + mmr)),
+                    plan_note=f"BUY the sweep-reclaim of {swept:,.0f}; stop below swept low; T1 take 50%+BE")
+    if rev.get("signal") == "BEAR":
+        swept = rev["level"]
+        stop = round(swept + buf * atr, 1)
+        sup = sorted((c["price"] for c in liq["clusters_below"] if c["price"] < price), reverse=True)
+        t1 = sup[0] if sup else round(price - 2 * atr, 1)
+        t2 = sup[1] if len(sup) > 1 else t1
+        risk = abs(stop - price) or 1.0
+        return dict(side="SHORT", mode="reversal", bias="REVERSAL-DN", conv=round(conv, 1),
+                    strength="sweep-reject", entry=round(price, 1), entry_type="MARKET (reject)",
+                    pullback_atr=0.0, stop=stop, risk=round(risk, 1),
+                    t1=round(t1, 1), t2=round(t2, 1),
+                    rr1=round(abs(price - t1) / risk, 2), rr2=round(abs(price - t2) / risk, 2),
+                    bet_usd=bet, leverage=lev, notional=round(bet * lev, 1), qty=round(bet * lev / price, 6),
+                    liq_price=round(price * (1 + 1 / lev - mmr), 1),
+                    liq_safe=(stop < price * (1 + 1 / lev - mmr)),
+                    plan_note=f"SHORT the sweep-reject of {swept:,.0f}; stop above swept high; T1 take 50%+BE")
+
     if bias == "FLAT" or conv < conv_min:
         return dict(side="WAIT", mode="levels", bias=bias, conv=round(conv, 1),
                     conv_min=conv_min, strength=sig["strength"],

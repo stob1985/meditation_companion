@@ -9,7 +9,7 @@ a bias label, a strength, and a 5-day forecast band - exactly like the
 from __future__ import annotations
 import numpy as np
 import pandas as pd
-from . import astro, flow as flowmod, dwell as dwellmod
+from . import astro, flow as flowmod, dwell as dwellmod, reversal as revmod
 
 
 def _adaptive_weights(db: dict, base: dict, horizon: int = 3) -> dict:
@@ -95,6 +95,16 @@ def composite(df: pd.DataFrame, events: pd.DataFrame, db: dict, cfg: dict,
         up = (up * w_total + reg_up * rw) / (w_total + rw)
         w_total += rw
 
+    # sweep-reclaim REVERSAL (the video's "sweep the lows -> reversal") - a strong
+    # override so the model is not structurally late to a turn the way pure trend
+    # following is. A confirmed sweep+reclaim pulls the bias toward the reclaim.
+    rev = revmod.detect(sub, cfg)
+    rev_w = float(cfg["signal"].get("reversal_weight", 0.0))
+    if rev_w > 0 and rev["signal"] == "BULL":
+        up = (up * w_total + 0.80 * rev_w) / (w_total + rev_w); w_total += rev_w
+    elif rev_w > 0 and rev["signal"] == "BEAR":
+        up = (up * w_total + 0.20 * rev_w) / (w_total + rev_w); w_total += rev_w
+
     up_pct = round(up * 100, 1)
     dn_pct = round(100 - up_pct, 1)
     bias = "UP" if up_pct > 52 else "DOWN" if up_pct < 48 else "FLAT"
@@ -122,7 +132,7 @@ def composite(df: pd.DataFrame, events: pd.DataFrame, db: dict, cfg: dict,
     return dict(rows=rows, active=len(active),
                 up=up_pct, dn=dn_pct, bias=bias, strength=strength, q=q,
                 forecast=dict(conf=int(cfg["signal"]["forecast_conf"] * 100), hi=hi, lo=lo),
-                planet=pc, dwell=dwell, flow=fl, weights=aw, mtf=mtf, regime=regime,
+                planet=pc, dwell=dwell, flow=fl, reversal=rev, weights=aw, mtf=mtf, regime=regime,
                 rsi=round(float(events.attrs["rsi"].iloc[at]), 0),
                 adx=round(float(events.attrs["adx"].iloc[at]), 1),
                 price=px, date=df.index[at].date())

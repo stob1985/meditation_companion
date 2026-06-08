@@ -59,6 +59,10 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
     f = sig["forecast"]
     L.append(f" FORECAST  {H}-day @ {f['conf']}%      "
              f"\u25b2 {f['hi']}     \u25bc {f['lo']}")
+    rev = sig.get("reversal")
+    if rev and rev.get("signal"):
+        ic = "🟢↑" if rev["signal"] == "BULL" else "🔴↓"
+        L.append(f" REVERSAL  {ic} {rev['signal']} sweep-reclaim  ·  {rev['note']}")
     if sig["planet"]:
         p = sig["planet"]
         asp = "  ".join(a["pair"] + f"({a['arc']}\u00b0)" for a in p["active"]) or "none"
@@ -106,16 +110,17 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
         L.append("=" * 92)
 
     # ---- trade plan -----------------------------------------------------
-    if trade and trade.get("mode") == "levels":
+    if trade and trade.get("mode") in ("levels", "reversal"):
         if trade["side"] == "WAIT":
             L.append(f" TRADE PLAN (LEVEL ENTRY)   ⏳ WAIT  ·  {trade['reason']}")
         else:
             t = trade
             safe = "OK" if t["liq_safe"] else "⚠ UNSAFE"
-            L.append(f" TRADE PLAN (LEVEL ENTRY)   {t['side']}  "
+            hdr = "REVERSAL ⚡" if t["mode"] == "reversal" else "LEVEL ENTRY"
+            L.append(f" TRADE PLAN ({hdr})   {t['side']}  "
                      f"({t['bias']} conv {t['conv']}%, {t['strength']})")
-            L.append(f"   entry  {t['entry']:>11.1f}  LIMIT  (price must travel "
-                     f"{t['pullback_atr']} ATR to the level)")
+            L.append(f"   entry  {t['entry']:>11.1f}  {t['entry_type']}  ("
+                     f"{t['pullback_atr']} ATR a szintig)")
             L.append(f"   stop   {t['stop']:>11.1f}   (-{t['risk']:.0f}  ·  level + {0.25}ATR)")
             L.append(f"   T1     {t['t1']:>11.1f}   (R:R {t['rr1']})  → take 50% + stop to break-even")
             L.append(f"   T2     {t['t2']:>11.1f}   (R:R {t['rr2']})  → runner")
