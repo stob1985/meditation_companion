@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<style>
+  @page { margin: 1.6cm; }
+  body { font-family: 'Liberation Sans', Arial, sans-serif; font-size: 10.5pt; color: #1a2a28; line-height: 1.4; }
+  h1 { font-size: 19pt; color: #10302e; margin: 0 0 2px 0; }
+  h2 { font-size: 14pt; color: #10302e; border-bottom: 2px solid #10302e; padding-bottom: 3px; margin-top: 22px; }
+  h3 { font-size: 11.5pt; color: #1c4b46; margin-top: 16px; margin-bottom: 4px; }
+  .sub { color: #3a5a57; font-size: 10pt; margin: 0 0 10px 0; }
+  .warn { background: #fff4f2; border: 1px solid #c0584a; color: #5a1f17; padding: 8px 12px; border-radius: 6px; font-size: 9.5pt; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 9pt; }
+  th { background: #10302e; color: #fff; text-align: left; padding: 5px 7px; }
+  td { border-bottom: 1px solid #cdddda; padding: 5px 7px; vertical-align: top; }
+  tr:nth-child(even) td { background: #f2f7f6; }
+  .tot td { font-weight: bold; background: #e3eeec !important; }
+  code, .mono { font-family: 'Liberation Mono', monospace; font-size: 9pt; }
+  .email { background: #f6f8f8; border-left: 3px solid #10302e; padding: 10px 14px; font-size: 9pt; }
+  small { color: #6b7f7c; font-size: 8.5pt; }
+  .disc { font-style: italic; color: #5a1f17; }
+</style>
+</head>
+<body>
+
+<h1>Honest Roots — Gyártói specifikáció (recept) + Hol gyártsd le</h1>
+<p class="sub">Női hajegészség-kiegészítő · Nutrafol-alternatíva · Készen ajánlatkéréshez (RFQ)</p>
+
+<p class="warn"><b>⚠️ Fontos:</b> Ez egy fejlesztési/koncepció-specifikáció. A végleges receptet, segédanyagokat, túladagolásokat és a stabilitást egy <b>képzett formulátor + bérgyártó</b> validálja. Forgalomba hozatal előtt <b>regulációs bejelentés</b> kell (HU: OGYÉI). Az állítások csak „structure/function" jellegűek lehetnek — gyógyhatás tilos.</p>
+
+<h2>A RÉSZ — A RECEPT (Master Manufacturing Specification)</h2>
+<p><b>Termék:</b> Honest Roots Women's Core &nbsp;|&nbsp; <b>Adagforma:</b> napi 1 adag = <b>2 db softgel (olajos hatóanyagok) + 1 db kemény kapszula (porok)</b> &nbsp;|&nbsp; <b>Kiszerelés:</b> 90 egység/doboz (60 softgel + 30 kapszula) = <b>30 napra</b></p>
+
+<h3>A.1 — SOFTGEL összetétel (olajok) — 2 db/nap</h3>
+<table>
+<tr><th>#</th><th>Hatóanyag</th><th>Nyersanyag-spec / grade</th><th>mg / softgel</th><th>mg / nap (2 db)</th></tr>
+<tr><td>1</td><td>Saw palmetto kivonat</td><td>CO₂-extrakt, <b>85–95% szabad zsírsav (FFA)</b>, olaj</td><td>160</td><td><b>320</b></td></tr>
+<tr><td>2</td><td>Tökmagolaj</td><td>hidegen sajtolt, std. fitoszterol</td><td>200</td><td><b>400</b></td></tr>
+<tr><td>3</td><td>Tokotrienol-komplex</td><td>pálma (pl. Tocomin/EVNol <b>50%</b>) → 25 mg tokotrienol/db</td><td>50</td><td><b>100</b> (=50 mg tokotrienol)</td></tr>
+<tr><td>4</td><td>Vivőolaj</td><td>MCT vagy magas-oleinsavú napraforgóolaj</td><td>~90</td><td>q.s.</td></tr>
+<tr><td>5</td><td>Antioxidáns</td><td>kevert tokoferolok (oxidáció ellen)</td><td>~5</td><td>—</td></tr>
+<tr class="tot"><td colspan="3">Töltet összesen (méret ~7–8 oblong softgel)</td><td>~505 mg</td><td></td></tr>
+<tr><td colspan="5"><b>Héj:</b> marha-zselatin + glicerin + tisztított víz (vagy vegán: módosított keményítő/karragén)</td></tr>
+</table>
+
+<h3>A.2 — KEMÉNY KAPSZULA összetétel (porok) — 1 db/nap</h3>
+<table>
+<tr><th>#</th><th>Hatóanyag</th><th>Nyersanyag-spec / grade</th><th>Címke-dózis</th><th>Beadott menny.*</th></tr>
+<tr><td>1</td><td>L-Cisztein</td><td>L-cisztein (HCl monohidrát) — <b>NEM NAC</b></td><td>200 mg</td><td>~200 mg</td></tr>
+<tr><td>2</td><td>C-vitamin</td><td>aszkorbinsav</td><td>90 mg</td><td>~100 mg (+10%)</td></tr>
+<tr><td>3</td><td>Cink</td><td><b>biszglicinát kelát</b> (~20% elemi Zn)</td><td>15 mg</td><td>~75 mg só</td></tr>
+<tr><td>4</td><td>Réz</td><td>biszglicinát (~13% elemi Cu)</td><td>1 mg</td><td>~7,7 mg só</td></tr>
+<tr><td>5</td><td>Szelén</td><td>L-szelenometionin premix (0,5% Se)</td><td>55 mcg</td><td>~11 mg premix</td></tr>
+<tr><td>6</td><td>D3-vitamin</td><td>kolekalciferol trituráció (100 NE/mg)</td><td>1000 NE (25 mcg)</td><td>~10 mg (+30%)</td></tr>
+<tr><td>7</td><td>Biotin</td><td>D-biotin 1% trituráció</td><td>300 mcg</td><td>~30 mg premix</td></tr>
+<tr><td>8</td><td>Csúsztató/töltő</td><td>szerves rizshéj-koncentrátum</td><td>—</td><td>q.s. ~550 mg-ra</td></tr>
+<tr><td>9</td><td>Csomósodásgátló</td><td>szilícium-dioxid</td><td>—</td><td>~5 mg</td></tr>
+<tr class="tot"><td colspan="3">Töltet összesen — 00-ás <b>vegán kapszula (hipromellóz)</b></td><td colspan="2">~550 mg</td></tr>
+</table>
+<p><small>* A mikrodózisú vitaminok/ásványok standardizált premixből mennek; a D3/biotin/C eltarthatósági <b>túladagolást</b> kap.</small></p>
+
+<h3>A.3 — OPT-IN ADD-ON kapszulák (külön SKU, nem alap)</h3>
+<table>
+<tr><th>Add-on</th><th>Nyersanyag</th><th>Címke-dózis</th><th>Megjegyzés</th></tr>
+<tr><td>Ashwagandha</td><td>Sensoril, ≥10% withanolid</td><td><b>125 mg</b></td><td>stresszhullás; máj-/pajzsmirigy-figyelmeztetéssel, opcionális</td></tr>
+<tr><td>Vas</td><td>ferro-biszglicinát (~20% Fe)</td><td><b>9 mg</b> elemi (≈45 mg só)</td><td>csak igazolt alacsony ferritinnél; pajzsmirigy-gyógyszertől 4 órára elkülönítve</td></tr>
+</table>
+
+<h3>A.4 — „Collagen+" tasak (külön termék)</h3>
+<table>
+<tr><th>Hatóanyag</th><th>Dózis / adag</th></tr>
+<tr><td>Hidrolizált kollagén-peptid (Verisol-grade bioaktív)</td><td><b>2,5 g</b> (generikusnál ~5 g)</td></tr>
+<tr><td>C-vitamin</td><td>40 mg</td></tr>
+<tr><td>Szilícium (bambusz-kivonat 70% SiO₂ vagy ch-OSA)</td><td>5–10 mg Si</td></tr>
+</table>
+
+<h3>A.5 — Pilot batch nyersanyaglista (BOM)</h3>
+<p style="font-size:9pt;">Egységdarab: <b>60.000 softgel + 30.000 kapszula</b> / 1.000 doboz (= 30.000 adag).</p>
+<table>
+<tr><th>Hatóanyag</th><th>kg / 1.000 doboz</th><th>kg / 5.000 doboz</th></tr>
+<tr><td>Saw palmetto (85–95% FFA)</td><td>9,6</td><td>48,0</td></tr>
+<tr><td>Tökmagolaj</td><td>12,0</td><td>60,0</td></tr>
+<tr><td>Tokotrienol-komplex 50%</td><td>3,0</td><td>15,0</td></tr>
+<tr><td>L-cisztein HCl</td><td>6,0</td><td>30,0</td></tr>
+<tr><td>C-vitamin (aszkorbinsav)</td><td>~3,0</td><td>~15,0</td></tr>
+<tr><td>Cink-biszglicinát</td><td>2,25</td><td>11,25</td></tr>
+<tr><td>Réz-biszglicinát</td><td>0,23</td><td>1,15</td></tr>
+<tr><td>Szelén-premix (0,5%)</td><td>0,33</td><td>1,65</td></tr>
+<tr><td>D3-premix</td><td>~0,30</td><td>~1,50</td></tr>
+<tr><td>Biotin 1% trituráció</td><td>0,90</td><td>4,50</td></tr>
+<tr><td>Vivőolaj / tokoferol / rizshéj / SiO₂</td><td>q.s.</td><td>q.s.</td></tr>
+</table>
+<p class="warn"><b>⚠️ MOQ-valóság:</b> a softgel-gyártás minimum sorozata jellemzően <b>100.000–250.000 db</b> (≈ 1.700–4.200 doboz). Reális első sorozat: <b>2.000–4.000 doboz</b>, vagy alacsony-MOQ-s gyártó.</p>
+
+<h3>A.6 — Minőségi követelmények (a szerződésbe)</h3>
+<ul>
+<li>Sarzsonkénti <b>COA</b> (azonosság + hatóanyag-tartalom)</li>
+<li><b>Nehézfém-panel:</b> As / Pb / Cd / Hg</li>
+<li><b>Mikrobiológia</b> (összcsíraszám, E. coli, Salmonella, élesztő/penész)</li>
+<li><b>Stabilitási teszt</b> (min. 6 hó gyorsított) — az olajok <b>oxidációs indexe</b> (peroxidszám) kulcs</li>
+<li><b>Túladagolási terv</b> a vitaminokra; softgelhez nitrogén-öblítés/antioxidáns</li>
+</ul>
+
+<h2>B RÉSZ — HOL TUDOD LEGYÁRTATNI</h2>
+<p>A Vitalo magyar/EU bolt → az <b>EU-s utat</b> javaslom (logisztika, notifikáció, bizalom).</p>
+
+<h3>B.1 — A gyártó típusa</h3>
+<table>
+<tr><th>Forma</th><th>Mit kapsz</th><th>Neked</th></tr>
+<tr><td>White/Private label</td><td>Kész alapreceptre a márkád. Olcsó, gyors, de nem a mi egyedi receptünk.</td><td>csak gyors teszthez</td></tr>
+<tr><td><b>Custom / Contract Manufacturing (CMO)</b></td><td>A <b>mi receptünket</b> gyártják.</td><td><b>✅ EZ KELL</b></td></tr>
+</table>
+
+<h3>B.2 — Kötelező követelmények a gyártónál (szűrőkérdések)</h3>
+<ul>
+<li><b>EU GMP</b> + <b>ISO 22000 / FSSC 22000</b> + <b>HACCP</b></li>
+<li>Tud <b>softgelt ÉS kapszulát</b> is (vagy két specialista + közös „kit"-csomagolás)</li>
+<li>Sarzsonkénti <b>COA</b>, <b>nehézfém-vizsgálat</b>, <b>stabilitási teszt</b></li>
+<li>Vállalja a <b>regulációs dokumentációt</b> (vagy ajánl tanácsadót)</li>
+</ul>
+
+<h3>B.3 — Hol találsz gyártót</h3>
+<ol>
+<li><b>Szakvásár (a leggyorsabb):</b> <b>Vitafoods Europe</b> (Barcelona) és <b>SupplySide / Hi&amp;Fi Europe</b> — egy nap alatt 50 EU-s CMO.</li>
+<li><b>EU softgel-specialisták:</b> pl. <b>EuroCaps (UK)</b>, <b>Procaps</b>, <b>Catalent</b>, <b>Captek</b>, plusz német/holland/lengyel/spanyol bérgyártók.</li>
+<li><b>EU kapszula-/porkeverék private label:</b> német, holland, lengyel és <b>magyar</b> bérgyártók — 3–4 ajánlat összevetése.</li>
+<li><b>Alacsonyabb MOQ / olcsóbb:</b> Alibaba ázsiai GMP-gyártók — <b>csak alapos auditálással</b> (GMP, EU-import megfelelőség, 3. fél teszt).</li>
+</ol>
+
+<h3>B.4 — EU / magyar szabályozás (más, mint az USA!)</h3>
+<ul>
+<li>A táplálékkiegészítő itt <b>élelmiszer</b> (2002/46/EK irányelv) — nem „supplement" az FDA szerint.</li>
+<li><b>Bejelentés Magyarországon:</b> forgalomba hozatal előtt <b>OGYÉI</b>-notifikáció (terméklap + címke).</li>
+<li><b>Botanikumok (saw palmetto):</b> EU-ban engedélyezettek; a címkeállítások szigorúak. Engedélyezett EFSA-állítás pl.: cink/szelén/biotin „a normál haj fenntartásához hozzájárul". <b>Gyógyhatás tilos.</b></li>
+<li><b>Terhességi figyelmeztetés</b> a saw palmetto miatt kötelező a címkén.</li>
+</ul>
+
+<h3>B.5 — Nagyságrendi költségek (irány)</h3>
+<ul>
+<li><b>Pilot sorozat (egyszeri):</b> formuláció + sorozat + tesztek ≈ <b>€15.000–40.000</b>.</li>
+<li><b>Gyártott önköltség:</b> ~<b>$25–40/doboz</b> induló volumenen (két dózisforma!), skálázva csökken → ezért a javasolt ár <b>$45/hó</b>.</li>
+</ul>
+
+<h3>B.6 — Cselekvési terv (lépésről lépésre)</h3>
+<ol>
+<li>Véglegesítsd ezt a specifikációt egy formulátorral (dózis-illesztés, segédanyagok, túladagolás).</li>
+<li>Küldd ki az <b>RFQ-t</b> (lent) 3–4 EU CMO-nak.</li>
+<li>Hasonlítsd: MOQ, ár/doboz, átfutás, tanúsítványok, stabilitás.</li>
+<li>Rendelj <b>mintát + COA-t</b>, mielőtt a teljes sorozatot megrendeled.</li>
+<li>Intézd az <b>OGYÉI-bejelentést</b> és a végleges címkét (regulációs tanácsadóval).</li>
+<li>Indítsd a stabilitási tesztet; a kész sarzs COA-ját töltsd fel a termékoldalra (QR).</li>
+</ol>
+
+<h2>C RÉSZ — RFQ (ajánlatkérő) e-mail sablon</h2>
+<div class="email">
+<b>Subject:</b> RFQ – Custom hair-wellness supplement (softgel + capsule), EU GMP<br><br>
+Hello [Manufacturer],<br><br>
+We are launching a women's hair-wellness supplement (EU/Hungary market) and are looking for an <b>EU GMP / ISO 22000</b> contract manufacturer for a <b>custom formulation</b> in two dose forms: <b>softgels (oils)</b> and <b>vegetable capsules (powders)</b>, packaged together (90 units/bottle, 30-day supply).<br><br>
+Please quote for <b>2,000 and 5,000 bottles</b>, including:<br>
+1. Price per bottle (formulation + encapsulation + bottling + label application)<br>
+2. <b>MOQ</b> for softgels and for capsules<br>
+3. Lead time<br>
+4. Certifications (GMP, ISO 22000/FSSC, HACCP), per-batch <b>COA</b>, <b>heavy-metal</b> testing (As/Pb/Cd/Hg), and <b>6-month accelerated stability</b><br>
+5. Whether you can support <b>EU food-supplement labelling / notification</b> documentation<br><br>
+<b>Formula (per daily serving = 2 softgels + 1 capsule):</b><br>
+<i>Softgel:</i> Saw palmetto CO₂ extract (85–95% FFA) 320 mg · Pumpkin seed oil 400 mg · Tocotrienol complex 100 mg.<br>
+<i>Capsule:</i> L-Cysteine 200 mg · Vitamin C 90 mg · Zinc bisglycinate (15 mg Zn) · Copper bisglycinate (1 mg Cu) · Selenium 55 mcg · Vitamin D3 1000 IU · Biotin 300 mcg.<br><br>
+NDA available on request. Thank you!<br>
+[Your name / Vitalo]
+</div>
+
+<p style="margin-top:18px;"><small>Készült dinamikus multi-agent workflow eredményéből (review-kutatás → összetevő-tudomány → formuláció → reguláció → adverszariális red-team). Kereskedelmi használat előtt elsődleges forrásból ellenőrizendő.</small></p>
+<p class="disc"><small>These statements have not been evaluated by the FDA / nincs gyógyhatás. Educational concept — not medical or regulatory advice.</small></p>
+
+</body>
+</html>
