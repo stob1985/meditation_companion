@@ -28,12 +28,12 @@ signal:
   horizon: 3             # which horizon drives the composite lean
   forecast_conf: 0.68    # image: FORECAST 5-day @ 68%
   band_lookback: 180
-  planet_weight: 1.2     # how much Phase 2 counts vs Phase 1
+  planet_weight: 0.0     # astro has NO proven edge; backtest improves with 0 (display-only)
   dwell_weight: 1.5      # weight of the dwell direction rule (transcript's main edge)
   flow_weight: 1.0       # weight of the money-flow / CVD lean
   regime_weight: 2.5     # weight of the trend/regime lean - keeps the composite with
                          # the trend (ref dashboard applies this as '0up/6down after regime')
-  reversal_weight: 3.0   # weight of the sweep-reclaim reversal (can override regime at a turn)
+  reversal_weight: 1.5   # sweep-reclaim weight (backtest-neutral -> kept moderate, not dominant)
   base_weights:
     "Saturday + TOM": 1.0
     "Pivot": 1.0
@@ -66,7 +66,7 @@ trade:
   target_mode: rr        # (market mode) rr = nearest magnet >= rr_min ; nearest
   regime_filter: false   # (market mode) don't take trades that fight a STRONG regime
   bet_usd: 100           # FIXED collateral / margin per trade (USD)
-  leverage: 25           # 10 | 25 | 50 | 100  (matches the liquidation tiers)
+  leverage: 10           # safer default (25x repeatedly flagged UNSAFE on wide stops)
   leverage_tiers: [10, 25, 50, 100]
   mmr: 0.005             # fallback maintenance-margin rate
   mmr_tiers: {10: 0.004, 25: 0.005, 50: 0.0075, 100: 0.01}   # tiered (per transcript)

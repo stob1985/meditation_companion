@@ -12,7 +12,7 @@ import yaml
 from engine import (data, events as ev, vdb, signal, liquidity, dashboard,
                     backtest, dwell as dwellmod, trade as trademod,
                     flow as flowmod, macro as macromod, sessions as sessmod,
-                    realflow as rfmod)
+                    realflow as rfmod, position)
 
 
 def load_cfg(path="config.yaml"):
@@ -35,6 +35,8 @@ def main():
     ap.add_argument("--source", choices=["synthetic", "live", "csv"])
     ap.add_argument("--backtest", action="store_true")
     ap.add_argument("--config", default="config.yaml")
+    ap.add_argument("--reset", action="store_true", help="clear the tracked position")
+    ap.add_argument("--track", action="store_true", help="record an actionable plan as a tracked position")
     args = ap.parse_args()
 
     cfg = load_cfg(args.config)
@@ -62,6 +64,37 @@ def main():
     overlays["sessions"] = sessmod.build(df, cfg)
 
     print(dashboard.render(sig, liq, db, cfg, dwell=dwell, trade=trade, overlays=overlays))
+
+    # ---- tracked position (stateful across runs) -----------------------
+    state_path = cfg.get("trade", {}).get("state_path", "state.json")
+    if args.reset:
+        position.clear(state_path)
+    print("\n TRACKED POSITION")
+    print(" " + "-" * 60)
+    pos = position.load(state_path)
+    if pos:
+        pos2, st = position.manage(pos, df, cfg)
+        for d, e in st["events"]:
+            print(f"   {d}  {e}")
+        if st["state"] == "closed":
+            position.clear(state_path)
+            print(f"   ✅ ZÁRVA  {st['side']} {st['entry']:,.0f}  →  realizált {st['realized_pct']:+.1f}%")
+        else:
+            position.save(state_path, pos2)
+            tag = "fél nyitva (T1 megvolt)" if st["partial"] else "nyitva"
+            print(f"   {st['side']} {st['entry']:,.0f} ({st['opened']})  ·  {tag}  ·  most {st['current']:,.0f}")
+            print(f"   nem realizált {st['unrealized_pct']:+.1f}%  |  stop {st['stop']:,.0f}"
+                  f"{' (BE)' if st['be'] else ''}  T1 {st['t1']:,.0f}  T2 {st['t2']:,.0f}")
+    elif trade and trade.get("side") in ("LONG", "SHORT") and trade.get("mode") in ("levels", "reversal"):
+        if args.track:
+            position.save(state_path, position.open_from_plan(trade, df.index[-1]))
+            print(f"   ▶ KÖVETÉS INDÍTVA: {trade['side']} {trade['entry']:,.0f}  "
+                  f"stop {trade['stop']:,.0f}  T1 {trade['t1']:,.0f}  T2 {trade['t2']:,.0f}")
+        else:
+            print(f"   nincs követett pozíció · van aktív terv ({trade['side']} {trade['entry']:,.0f}) "
+                  f"— `--track`-kel indítható a követés")
+    else:
+        print("   nincs követett pozíció · nincs aktív belépő (WAIT)")
 
     if args.backtest:
         bt = backtest.run(df, events, cfg)
