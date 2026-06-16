@@ -84,10 +84,11 @@ print("grafikonok kesz")
 # ---- PDF ------------------------------------------------------------------
 class Page:
     def __init__(self, pp, title=""):
-        self.fig = plt.figure(figsize=(8.27, 11.69)); self.ax = self.fig.add_axes([0,0,1,1]); self.ax.axis("off")
+        self.fig = plt.figure(figsize=(8.27, 11.69)); self.ax = self.fig.add_axes([0,0,1,1])
+        self.ax.set_xlim(0,1); self.ax.set_ylim(0,1); self.ax.set_autoscale_on(False); self.ax.axis("off")
         self.pp = pp
-        # masthead
-        self.ax.add_patch(plt.Rectangle((0,0.93),1,0.07, color="#0e1b33", transform=self.fig.transFigure))
+        # masthead (data coords on fixed 0..1 axes)
+        self.ax.add_patch(plt.Rectangle((0,0.93),1,0.07, color="#0e1b33"))
         self.ax.text(0.07,0.962,"BTC DAILY", fontsize=18, fontweight="bold", color="white", va="center")
         self.ax.text(0.07,0.943,"Bitcoin napi elemző hírlevél · kis befektetőknek", fontsize=8.5, color="#9fb3d1", va="center")
         self.ax.text(0.93,0.957,str(today), fontsize=9, color="#cfe", va="center", ha="right")
@@ -100,23 +101,21 @@ class Page:
         self.y -= 0.004
     def h(self, txt, size=14, c="#0e1b33"):
         self.y -= 0.004; self.ax.text(0.07, self.y, txt, fontsize=size, fontweight="bold", color=c, va="top")
-        self.y -= size/430.0; self.ax.plot([0.07,0.93],[self.y,self.y], color="#dde3ec", lw=1, transform=self.fig.transFigure); self.y -= 0.012
+        self.y -= size/430.0; self.ax.plot([0.07,0.93],[self.y,self.y], color="#dde3ec", lw=1); self.y -= 0.012
     def box(self, txt, rgb, size=12.5, h=0.044):
-        self.ax.add_patch(plt.Rectangle((0.07, self.y-h),0.86,h, color=rgb, transform=self.fig.transFigure))
+        self.ax.add_patch(plt.Rectangle((0.07, self.y-h),0.86,h, color=rgb))
         self.ax.text(0.5, self.y-h/2, txt, ha="center", va="center", fontsize=size, color="white", fontweight="bold"); self.y -= h+0.013
     def img(self, path, h=0.40):
         a = self.fig.add_axes([0.07, self.y-h, 0.86, h]); a.axis("off"); a.imshow(mpimg.imread(path)); self.y -= h+0.012
     def table(self, rows, cols, widths, rowh=0.030, fs=8.8):
         x0=0.07; tw=0.86
-        # header
-        self.ax.add_patch(plt.Rectangle((x0, self.y-rowh), tw, rowh, color="#0e1b33", transform=self.fig.transFigure))
+        self.ax.add_patch(plt.Rectangle((x0, self.y-rowh), tw, rowh, color="#0e1b33"))
         cx=x0
         for j,col in enumerate(cols):
             self.ax.text(cx+0.006, self.y-rowh/2, col, fontsize=fs, color="white", fontweight="bold", va="center"); cx+=widths[j]*tw
         self.y-=rowh
         for i,row in enumerate(rows):
-            rc = row[-1] if isinstance(row[-1],tuple) else None      # optional (text,color) signal cell handled below
-            self.ax.add_patch(plt.Rectangle((x0, self.y-rowh), tw, rowh, color="#f4f6f9" if i%2 else "#ffffff", transform=self.fig.transFigure))
+            self.ax.add_patch(plt.Rectangle((x0, self.y-rowh), tw, rowh, color="#f4f6f9" if i%2 else "#ffffff"))
             cx=x0
             for j,cell in enumerate(row):
                 col="#222"; weight="normal"
@@ -124,9 +123,11 @@ class Page:
                 self.ax.text(cx+0.006, self.y-rowh/2, str(cell), fontsize=fs, color=col, fontweight=weight, va="center"); cx+=widths[j]*tw
             self.y-=rowh
         self.y-=0.012
+    _n = 0
     def save(self):
         self.ax.text(0.5,0.018,"Oktatási célú összefoglaló — NEM pénzügyi tanács. A kripto kockázatos. · BTC DAILY",
-                     ha="center", fontsize=7.5, color="#999"); self.pp.savefig(self.fig); plt.close(self.fig)
+                     ha="center", fontsize=7.5, color="#999")
+        self.pp.savefig(self.fig); plt.close(self.fig)
 
 reclaim = int((px//1000)*1000+3000)
 pdfpath = f"{OUT}/BTC_napi_hirlevel_{today}.pdf"
@@ -135,8 +136,10 @@ with PdfPages(pdfpath) as pp:
     p = Page(pp, "1/9 · Vezetői összefoglaló")
     p.box(f"MAI ÁLLÁS: {verdict}   ·   ár {px:,.0f} $   ·   jelek {votes['DOWN']} le / {votes['UP']} fel", vcol, 13, 0.05)
     p.h("Helyzet")
-    p.t(f"A Bitcoin {px:,.0f} $-on áll, egy hét alatt {chg7:+.0f}%-ot esett (hónap: {chg30:+.0f}%). "
-        f"MA Fed-kamatdöntés (FOMC) van — ez határozza meg a következő nagy irányt. A kérdés: venni, eladni vagy várni?")
+    _w7 = "emelkedett" if chg7 >= 0 else "esett"
+    p.t(f"A Bitcoin {px:,.0f} $-on áll: a hónap {chg30:+.0f}% (erős esés), de a héten {abs(chg7):.0f}%-ot {_w7} "
+        f"(visszapattanás). MA Fed-kamatdöntés (FOMC) van — ez határozza meg a következő nagy irányt. "
+        f"A kérdés: venni, eladni vagy várni?")
     p.h("Kulcs-megállapítások (számokkal)")
     p.t(f"1. Az irány lefelé: a 6 fő jelből {votes['DOWN']} mutat LE, {votes['UP']} fel. "
         f"Összesített erő: {sig['bias']} {bias_pct:.0f}% („{sig['strength']}\").  → A trend még eladói.", w="bold" if False else "normal")
