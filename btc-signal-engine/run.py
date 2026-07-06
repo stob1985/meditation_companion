@@ -63,6 +63,13 @@ def main():
     overlays["macro"] = macromod.build(df, cfg)
     overlays["sessions"] = sessmod.build(df, cfg)
 
+    # liquidity gravity + trap watch (the bull/bear-trap playbook, automated)
+    ml = overlays.get("multi_liq")
+    ca = sorted((ml["clusters_above"] if ml else liq["clusters_above"]), key=lambda c: c["price"])
+    cb = sorted((ml["clusters_below"] if ml else liq["clusters_below"]), key=lambda c: -c["price"])
+    overlays["trap"] = trademod.trap_watch(sig, ca, cb, liq["price"], liq["atr"],
+                                           dwell or {}, overlays.get("realflow"), cfg)
+
     print(dashboard.render(sig, liq, db, cfg, dwell=dwell, trade=trade, overlays=overlays))
 
     # ---- tracked position (stateful across runs) -----------------------

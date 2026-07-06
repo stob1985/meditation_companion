@@ -217,3 +217,27 @@ def build_multi(cfg: dict) -> dict | None:
     return dict(venues=list(per.keys()), per_venue=per, ref_price=ref_price,
                 clusters_above=above, clusters_below=below, consensus=consensus,
                 n_venues=len(per))
+
+
+# ---------------------------------------------------------------- gravity
+def gravity(clusters_above, clusters_below, price, atr) -> dict:
+    """Liquidity GRAVITY: which side pulls harder?
+
+    Every cluster pulls with force = size / (1 + distance-in-ATR). The bigger
+    AND closer pool wins ("the market hunts the bigger pool"). This is the
+    user's bull-trap insight formalised: a rally into small opposing clusters
+    while a much larger pool sits below is trap-prone, and vice versa.
+    """
+    a = max(float(atr), 1e-9)
+
+    def pull(cl):
+        return sum(c["count"] / (1.0 + abs(c["price"] - price) / a) for c in cl)
+
+    wa, wb = pull(clusters_above), pull(clusters_below)
+    ba = max(clusters_above, key=lambda c: c["count"]) if clusters_above else None
+    bb = max(clusters_below, key=lambda c: c["count"]) if clusters_below else None
+    ratio = (wb / wa) if wa > 0 else float("inf")
+    direction = "DOWN" if wb > 1.25 * wa else "UP" if wa > 1.25 * wb else "BALANCED"
+    return dict(above_pull=round(wa, 1), below_pull=round(wb, 1),
+                ratio=round(ratio, 2) if ratio != float("inf") else None,
+                direction=direction, biggest_above=ba, biggest_below=bb)

@@ -103,3 +103,10 @@ realflow:
   enabled: true          # LIVE real data: OKX liquidations + OI + long/short ratio
   inst_family: BTC-USDT  #   + Hyperliquid funding. Contrarian crowd read.
   liq_limit: 100
+
+# ---- trap watch: liquidity-gravity + bull/bear-trap detection --------------
+trap:
+  enabled: true
+  ls_hot: 1.6            # crowd L/S ratio that marks a crowded side
+  funding_hot: 2.0e-5    # funding level that marks an overheated side
+  zone_reach_atr: 6.0    # how far (ATR) the bait zone may sit from price

@@ -419,3 +419,97 @@ def plan(sig: dict, liq: dict, dwell: dict, cfg: dict) -> dict:
                dwell_state=dwell.get("state"),
                flow=fl.get("agree", "n/a"))
     return out
+
+
+def trap_watch(sig: dict, clusters_above, clusters_below, price, atr,
+               dwell: dict, rf: dict, cfg: dict) -> dict:
+    """TRAP WATCH - the user's bull-trap playbook, automated.
+
+    When liquidity GRAVITY points DOWN (much bigger pool below) but price is
+    rallying into the small opposing clusters above, that rally is trap-prone:
+    the market sweeps the small short-liq fuel, lures late longs, then reverses
+    to harvest the big pool. Mirror logic for bear traps.
+
+    Trap signals checked automatically at the zone:
+      1. CVD divergence (price up but flow shows distribution)
+      2. crowd piling on the wrong side (L/S >= ls_hot)
+      3. funding turning hot on the crowded side
+      4. no dwell-block acceptance (price still below/above the block)
+      5. sweep-reject reversal fires against the move
+    Status: OFF / WATCH (gravity set, zone identified) / ARMED (price at zone
+    + >=2 signals) -> ARMED includes a concrete counter-trade plan targeting
+    the big pool.
+    """
+    from .liquidity import gravity as _grav
+    tc = cfg.get("trap", {})
+    if not tc.get("enabled", True):
+        return dict(status="OFF")
+    ls_hot = float(tc.get("ls_hot", 1.6))
+    fund_hot = float(tc.get("funding_hot", 2e-5))
+    reach = float(tc.get("zone_reach_atr", 6.0))
+    buf = float(cfg.get("trade", {}).get("stop_buffer_atr", 0.25))
+
+    g = _grav(clusters_above, clusters_below, price, atr)
+    rev = sig.get("reversal") or {}
+    flow_agree = (sig.get("flow") or {}).get("agree", "")
+    ls = (rf or {}).get("ls_ratio") or {}
+    fund = (rf or {}).get("funding") or {}
+
+    if g["direction"] == "DOWN" and g["biggest_below"]:
+        # BULL TRAP side: minor clusters above are the bait zone
+        minors = [c for c in clusters_above
+                  if 0 < (c["price"] - price) <= reach * atr
+                  and (not g["biggest_above"] or c["price"] < g["biggest_above"]["price"])]
+        if not minors:
+            return dict(status="WATCH", kind="bull-trap", gravity=g, zone=None,
+                        note="gravitáció LE, de nincs közeli csali-zóna fent")
+        z_lo, z_hi = minors[0]["price"], minors[-1]["price"]
+        checks = dict(
+            cvd_div=("distribution" in flow_agree),
+            crowd_long=(float(ls.get("ratio", 0)) >= ls_hot),
+            funding_hot=(float(fund.get("funding", 0)) >= fund_hot),
+            no_acceptance=(dwell.get("location") == "BELOW"),
+            sweep_reject=(rev.get("signal") == "BEAR"))
+        n_ok = sum(checks.values())
+        in_zone = price >= z_lo * 0.995
+        status = "ARMED" if (in_zone and n_ok >= 2) else "WATCH"
+        plan = None
+        if status == "ARMED":
+            stop = _r(z_hi + buf * atr)
+            tgt = g["biggest_below"]["price"]
+            risk = max(stop - price, 1e-9)
+            plan = dict(side="SHORT", entry_zone=(z_lo, z_hi), stop=stop, target=tgt,
+                        rr=round((price - tgt) / risk, 2))
+        return dict(status=status, kind="bull-trap", gravity=g,
+                    zone=(z_lo, z_hi), checks=checks, n_ok=n_ok, plan=plan,
+                    big_below=g["biggest_below"], big_above=g["biggest_above"])
+
+    if g["direction"] == "UP" and g["biggest_above"]:
+        minors = [c for c in clusters_below
+                  if 0 < (price - c["price"]) <= reach * atr
+                  and (not g["biggest_below"] or c["price"] > g["biggest_below"]["price"])]
+        if not minors:
+            return dict(status="WATCH", kind="bear-trap", gravity=g, zone=None,
+                        note="gravitáció FEL, de nincs közeli csali-zóna lent")
+        z_hi, z_lo = minors[0]["price"], minors[-1]["price"]
+        checks = dict(
+            cvd_div=("absorption" in flow_agree),
+            crowd_short=(0 < float(ls.get("ratio", 1)) <= 1.0 / ls_hot),
+            funding_hot=(float(fund.get("funding", 0)) <= -fund_hot),
+            no_acceptance=(dwell.get("location") == "ABOVE"),
+            sweep_reclaim=(rev.get("signal") == "BULL"))
+        n_ok = sum(checks.values())
+        in_zone = price <= z_hi * 1.005
+        status = "ARMED" if (in_zone and n_ok >= 2) else "WATCH"
+        plan = None
+        if status == "ARMED":
+            stop = _r(z_lo - buf * atr)
+            tgt = g["biggest_above"]["price"]
+            risk = max(price - stop, 1e-9)
+            plan = dict(side="LONG", entry_zone=(z_lo, z_hi), stop=stop, target=tgt,
+                        rr=round((tgt - price) / risk, 2))
+        return dict(status=status, kind="bear-trap", gravity=g,
+                    zone=(z_lo, z_hi), checks=checks, n_ok=n_ok, plan=plan,
+                    big_below=g["biggest_below"], big_above=g["biggest_above"])
+
+    return dict(status="WATCH", kind="balanced", gravity=g, zone=None)

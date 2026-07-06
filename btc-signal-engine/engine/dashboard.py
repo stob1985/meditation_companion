@@ -166,6 +166,36 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
                      f"x{c['count']:<3} {c['tiers']}  [{','.join(v[:3] for v in c['venues'])}]")
         L.append("=" * 92)
 
+    # ---- liquidity gravity + trap watch --------------------------------
+    if overlays and overlays.get("trap") and overlays["trap"].get("status") != "OFF":
+        tw = overlays["trap"]; g = tw.get("gravity") or {}
+        arrow = {"DOWN": "⬇ LEFELÉ húz", "UP": "⬆ FELFELÉ húz", "BALANCED": "⚖ kiegyenlített"}.get(g.get("direction"), "?")
+        ba, bb = g.get("biggest_above"), g.get("biggest_below")
+        L.append(f" LIQUIDITY GRAVITY   {arrow}   (lenti húzóerő {g.get('below_pull')} vs fenti {g.get('above_pull')}"
+                 + (f", arány {g.get('ratio')}" if g.get('ratio') else "") + ")")
+        if ba or bb:
+            L.append("   legnagyobb mágnes:  "
+                     + (f"LENT {bb['price']:,.0f} (x{bb['count']})" if bb else "lent —") + "   vs   "
+                     + (f"FENT {ba['price']:,.0f} (x{ba['count']})" if ba else "fent —"))
+        if tw.get("zone"):
+            z1, z2 = tw["zone"]
+            icon = "🪤" if tw["status"] == "ARMED" else "👁"
+            name = "BIKACSAPDA" if tw.get("kind") == "bull-trap" else "MEDVECSAPDA"
+            L.append(f"   {icon} {name}-FIGYELŐ  csali-zóna {min(z1,z2):,.0f}–{max(z1,z2):,.0f}   "
+                     f"státusz: {tw['status']} ({tw.get('n_ok',0)}/5 jel)")
+            ck = tw.get("checks") or {}
+            lbl = {"cvd_div": "CVD-divergencia", "crowd_long": "tömeg-long", "crowd_short": "tömeg-short",
+                   "funding_hot": "funding forró", "no_acceptance": "nincs acceptance",
+                   "sweep_reject": "sweep-reject", "sweep_reclaim": "sweep-reclaim"}
+            L.append("      jelek: " + "  ".join(f"{lbl.get(k,k)} {'✓' if v else '✗'}" for k, v in ck.items()))
+            if tw.get("plan"):
+                pl = tw["plan"]; e1, e2 = pl["entry_zone"]
+                L.append(f"      ⚡ ÉLES CSAPDA-TERV: {pl['side']} a {min(e1,e2):,.0f}–{max(e1,e2):,.0f} zónában  "
+                         f"stop {pl['stop']:,.0f}  cél {pl['target']:,.0f}  (R:R {pl['rr']})")
+        elif tw.get("note"):
+            L.append(f"   👁 {tw['note']}")
+        L.append("=" * 92)
+
     # ---- BUY / SHORT zones (always shown) ------------------------------
     if overlays and overlays.get("zones"):
         z = overlays["zones"]
