@@ -61,7 +61,16 @@ def main():
             overlays["multi_liq"] = liquidity.build_multi(cfg)
         overlays["realflow"] = rfmod.build(cfg, liq["price"], liq["atr"])
     overlays["macro"] = macromod.build(df, cfg)
-    overlays["sessions"] = sessmod.build(df, cfg)
+    # sessions: needs intraday - pull 1H (live) so Asia/London/NY stats always work
+    if cfg["data"]["source"] == "live" and cfg.get("sessions", {}).get("enabled", True):
+        try:
+            df1h = data.load_live(cfg["data"]["symbol"], "60", 1000,
+                                  cfg["data"].get("exchange", "auto"), verbose=False)
+            overlays["sessions"] = sessmod.build(df1h, cfg)
+        except Exception:
+            overlays["sessions"] = sessmod.build(df, cfg)
+    else:
+        overlays["sessions"] = sessmod.build(df, cfg)
 
     # liquidity gravity + trap watch (the bull/bear-trap playbook, automated)
     ml = overlays.get("multi_liq")

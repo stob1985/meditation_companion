@@ -123,12 +123,13 @@ def build(cfg: dict, price: float, atr: float) -> dict | None:
     if not cfg.get("realflow", {}).get("enabled", True):
         return None
     fam = cfg.get("realflow", {}).get("inst_family", "BTC-USDT")
+    ccy = fam.split("-")[0]                             # per-coin, not hardcoded BTC
     liqs = okx_liquidations(fam, cfg.get("realflow", {}).get("liq_limit", 100))
     width = atr * cfg["liquidity"]["zone_mult"]
     above, below = _cluster_liqs(liqs, price, width) if liqs else ([], [])
-    oi = okx_oi_trend()
-    lsr = okx_long_short_ratio()
-    fund = hyperliquid_funding()
+    oi = okx_oi_trend(ccy=ccy)
+    lsr = okx_long_short_ratio(ccy=ccy)
+    fund = hyperliquid_funding(coin=ccy)
     if not any([liqs, oi, lsr, fund]):
         return None
     # net real-flow bias vote (contrarian L/S + funding)

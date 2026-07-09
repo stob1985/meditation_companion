@@ -257,10 +257,20 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
         if se:
             if not se.get("intraday"):
                 L.append(f" SESSIONS  {se.get('note','')}")
-            elif se.get("today_pred"):
-                tp = se["today_pred"]; td = se["today"]
-                L.append(f" SESSIONS  Asia {td['asia']:+d} London {td['london']:+d} → "
-                         f"P(NY up)={tp['p_ny_up']}%  (n={tp['n']}, {se['n_days']} days)")
+            else:
+                td = se.get("today", {})
+                if se.get("today_pred"):
+                    tp = se["today_pred"]
+                    L.append(f" SESSIONS  Asia {td.get('asia',0):+d} London {td.get('london',0):+d} → "
+                             f"P(NY↑)={tp['p_ny_up']}%  (n={tp['n']}, {se['n_days']} nap)")
+                else:
+                    L.append(f" SESSIONS (Asia/London/NY, {se['n_days']} nap) — ma Asia {td.get('asia',0):+d} "
+                             f"London {td.get('london',0):+d} (még nem teljes)")
+                cond = se.get("conditional") or {}
+                key = {1: "↑", -1: "↓"}
+                cells = "  ".join(f"A{key[a]}L{key[l]}→NY↑ {v['p_ny_up']}%" for (a, l), v in sorted(cond.items()))
+                if cells:
+                    L.append(f"   feltételes: {cells}")
             printed = True
         if printed:
             L.append("=" * 92)
