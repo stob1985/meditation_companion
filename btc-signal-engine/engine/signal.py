@@ -9,7 +9,7 @@ a bias label, a strength, and a 5-day forecast band - exactly like the
 from __future__ import annotations
 import numpy as np
 import pandas as pd
-from . import astro, flow as flowmod, dwell as dwellmod, reversal as revmod
+from . import astro, flow as flowmod, dwell as dwellmod, reversal as revmod, drprofit as drpmod
 
 
 def _adaptive_weights(db: dict, base: dict, horizon: int = 3) -> dict:
@@ -27,7 +27,7 @@ def _adaptive_weights(db: dict, base: dict, horizon: int = 3) -> dict:
 
 
 def composite(df: pd.DataFrame, events: pd.DataFrame, db: dict, cfg: dict,
-              at: int = -1, dwell: dict = None) -> dict:
+              at: int = -1, dwell: dict = None, realflow: dict = None) -> dict:
     horizon = cfg["signal"]["horizon"]
     base = cfg["signal"]["base_weights"]
     aw = _adaptive_weights(db, base, horizon)
@@ -105,6 +105,17 @@ def composite(df: pd.DataFrame, events: pd.DataFrame, db: dict, cfg: dict,
     elif rev_w > 0 and rev["signal"] == "BEAR":
         up = (up * w_total + 0.20 * rev_w) / (w_total + rev_w); w_total += rev_w
 
+    # ── DrProfit Framework Layer (LCA / Psychological) ────────────────────────
+    drp_result = None
+    if cfg.get("drprofit", {}).get("enabled", False):
+        sub_df = df.iloc[:at + 1] if at != -1 else df
+        drp_result = drpmod.analyze(sub_df, cfg, dwell=dwell, realflow=realflow)
+        drp_w = float(cfg["drprofit"].get("signal_weight", 0.0))
+        if drp_w > 0 and drp_result["drp_bias"] != "NEUTRAL":
+            drp_up = drp_result["drp_up"]
+            up = (up * w_total + drp_up * drp_w) / (w_total + drp_w)
+            w_total += drp_w
+
     up_pct = round(up * 100, 1)
     dn_pct = round(100 - up_pct, 1)
     bias = "UP" if up_pct > 52 else "DOWN" if up_pct < 48 else "FLAT"
@@ -135,4 +146,5 @@ def composite(df: pd.DataFrame, events: pd.DataFrame, db: dict, cfg: dict,
                 planet=pc, dwell=dwell, flow=fl, reversal=rev, weights=aw, mtf=mtf, regime=regime,
                 rsi=round(float(events.attrs["rsi"].iloc[at]), 0),
                 adx=round(float(events.attrs["adx"].iloc[at]), 1),
-                price=px, date=df.index[at].date())
+                price=px, date=df.index[at].date(),
+                drprofit=drp_result)

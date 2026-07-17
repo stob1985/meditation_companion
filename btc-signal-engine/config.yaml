@@ -104,6 +104,28 @@ realflow:
   inst_family: BTC-USDT  #   + Hyperliquid funding. Contrarian crowd read.
   liq_limit: 100
 
+# ── DrProfit Framework Layer ────────────────────────────────────────────────
+# TA / LCA / Psychological Breakdown (Doctor Profit @DrProfitCrypto)
+# stage=0 → auto-inferred from MTF + ATH dist + OI + volatility
+# stage=1-6 → manual override (set when you know which phase we're in)
+drprofit:
+  enabled: true
+  stage: 0                    # 0=auto | 1=distribution | 2=first drop |
+                              # 3=bull trap | 4=second leg | 5=max pain | 6=CBB
+  box_low: 57000              # fallback if dwell value area unavailable
+  box_high: 87000             # auto-detected from dwell in normal operation
+  box_border_pct: 0.15        # border = outer 15% of box range → actionable
+  dca_zones:                  # DrProfit's documented DCA entry zones
+    short:                    # add 10%/day while price is inside zone
+      - [79000, 85000]        # 2026 bull-trap short zone
+      - [115000, 125000]      # original 2025 top short
+    long:                     # spot accumulation zones
+      - [57000, 60000]        # short-term buy (33% box bottom)
+      - [40000, 48000]        # CBB — Confirmed BlackRock Bottom
+  crowd_ls_hot: 1.5           # L/S above this = crowd long-heavy → contra DOWN
+  funding_hot: 2.0e-5         # funding above this = overheated longs
+  signal_weight: 2.0          # weight in composite (same scale as dwell_weight)
+
 # ---- trap watch: liquidity-gravity + bull/bear-trap detection --------------
 trap:
   enabled: true

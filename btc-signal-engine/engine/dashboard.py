@@ -275,4 +275,29 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
         if printed:
             L.append("=" * 92)
 
+    # ── DrProfit Framework Layer ───────────────────────────────────────────────
+    drp = sig.get("drprofit")
+    if drp:
+        stage_lbl = drp.get("stage_label", "")
+        box = drp.get("box", {})
+        crowd = drp.get("crowd", {})
+        dca = drp.get("dca", {})
+        bias = drp.get("drp_bias", "NEUTRAL")
+        bias_icon = "⬆" if bias == "UP" else "⬇" if bias == "DOWN" else "⟺"
+
+        L.append(" DRPROFIT FRAMEWORK   TA / LCA / Psychological")
+        L.append(f"   Stage {drp['stage']}/6: {stage_lbl}")
+        L.append(
+            f"   Box: {box.get('zone','?')} ({box.get('box_pct','?')}%  "
+            f"lo {box.get('box_lo',0):,.0f} – hi {box.get('box_hi',0):,.0f})  "
+            f"{'⚡ BORDER = ACTIONABLE' if box.get('border') else '◻ mid-box → WAIT'}"
+        )
+        L.append(f"   Crowd: {crowd.get('sentiment','?')}")
+        if dca.get("active"):
+            L.append(f"   ✅ DCA ZONE ACTIVE  {dca['side']} {dca['zone']}  → {dca['instruction']}")
+        else:
+            L.append(f"   ◻ {dca.get('instruction','Price outside all DCA zones')}")
+        L.append(f"   DrProfit Bias: {bias_icon} {bias}  (drp_up={drp.get('drp_up',0.5):.0%})")
+        L.append("=" * 92)
+
     return "\n".join(L)

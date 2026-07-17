@@ -48,7 +48,13 @@ def main():
     db = vdb.build(df["close"], events, cap=cfg["vdb"]["cap"],
                    horizons=tuple(cfg["vdb"]["horizons"]))
     dwell = dwellmod.build(df, cfg) if cfg.get("dwell", {}).get("enabled", True) else None
-    sig = signal.composite(df, events, db, cfg, at=-1, dwell=dwell)
+
+    # build realflow early so DrProfit layer can use it in signal.composite
+    realflow_raw = None
+    if cfg["data"]["source"] == "live":
+        realflow_raw = rfmod.build(cfg, 0, 1)  # price/atr placeholders, updated below
+
+    sig = signal.composite(df, events, db, cfg, at=-1, dwell=dwell, realflow=realflow_raw)
     liq = liquidity.build(df, cfg)
     trade = (trademod.plan(sig, liq, dwell or {}, cfg)
              if cfg.get("trade", {}).get("enabled", True) else None)
