@@ -132,3 +132,21 @@ trap:
   ls_hot: 1.6            # crowd L/S ratio that marks a crowded side
   funding_hot: 2.0e-5    # funding level that marks an overheated side
   zone_reach_atr: 6.0    # how far (ATR) the bait zone may sit from price
+
+# ---- EXTREME DETECTOR (the gate that replaces daily noise) ---------------
+# ARMED = at least arm_min signals active simultaneously (contrarian at extremes).
+# When NOT armed the engine refuses to produce a trade plan (the rare-moment
+# philosophy: 95% of days are noise; only the true extremes deserve action).
+extreme:
+  enabled: true
+  arm_min: 3                      # how many concurrent signals to fire ARMED
+  ls_long_extreme: 1.80           # L/S >= this = crowd LONG-HEAVY (DOWN setup)
+  ls_short_extreme: 0.80          # L/S <= this = crowd SHORT-HEAVY (UP setup)
+  funding_hot: 5.0e-5             # funding >= this = overheated longs
+  funding_capitulation: -2.0e-5   # funding <= this = short capitulation
+  rsi_extreme_low: 25
+  rsi_extreme_high: 78
+  cascade_min_liqs: 3000
+  use_fng: true                   # external: Fear & Greed (alternative.me)
+  fng_fear: 15
+  fng_greed: 85

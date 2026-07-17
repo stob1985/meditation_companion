@@ -30,12 +30,36 @@ def _leg(L, lbl, t):
 def render(sig: dict, liq: dict, db: dict, cfg: dict,
            dwell: dict = None, trade: dict = None, overlays: dict = None) -> str:
     H = cfg["signal"]["horizon"]
+    cfg_sym = cfg.get("data", {}).get("symbol", "BTCUSDT")
     L = []
     L.append("=" * 92)
-    L.append(f" BTCUSDT  ·  {sig['date']}  ·  px {sig['price']:.1f}   "
+    L.append(f" {cfg_sym:6s}  ·  {sig['date']}  ·  px {sig['price']:.1f}   "
              f"RSI {sig['rsi']:.0f}  ADX {sig['adx']:.1f}  "
              f"MTF {sig['mtf']:+d} ({sig['regime']})")
     L.append("=" * 92)
+
+    # ---- Extreme detector (gate) — THE FIRST THING ON SCREEN -----------
+    ext = sig.get("extreme") or {}
+    if ext and ext.get("arm_min"):
+        if ext["armed"]:
+            L.append(f" ⚡ EXTREME-DETECTOR   ARMED · irány: {ext['direction']}  "
+                     f"({ext['n_active']}/{ext['n_total']} szignál aktív, küszöb ≥{ext['arm_min']})")
+            L.append("    Aktív szignálok:")
+            for s in ext["signals"]:
+                mark = "✓" if s["active"] else "✗"
+                L.append(f"      {mark} {s['name']:8s} {s['detail']}")
+            L.append("    ➜ RITKA PILLANAT AKTÍV — belépés a tervek szerint.")
+        else:
+            L.append(f" 💤 EXTREME-DETECTOR   NO SETUP  ·  {ext['n_active']}/{ext['n_total']} "
+                     f"szignál aktív (küszöb ≥{ext['arm_min']}, contrarian többséghez)")
+            L.append("    Szignál-állapot:")
+            for s in ext["signals"]:
+                mark = "✓" if s["active"] else "✗"
+                L.append(f"      {mark} {s['name']:8s} {s['detail']}")
+            if ext.get("fng"):
+                L.append(f"    Fear&Greed: {ext['fng']['value']} ({ext['fng']['label']})")
+            L.append("    ➜ A piac NEM szélsőségben. NE KERESKEDJ — hallgass.")
+        L.append("=" * 92)
 
     # ---- Phase 1 event table -------------------------------------------
     hdr = (_c("EVENT", 22) + _c("DN%", 6) + _c("UP%", 6) + _c("WIN", 6) +

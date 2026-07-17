@@ -10,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from . import astro, flow as flowmod, dwell as dwellmod, reversal as revmod, drprofit as drpmod
+from . import extreme as extmod
 
 
 def _adaptive_weights(db: dict, base: dict, horizon: int = 3) -> dict:
@@ -126,6 +127,32 @@ def composite(df: pd.DataFrame, events: pd.DataFrame, db: dict, cfg: dict,
                 else "MODERATE" if spread > 4 else "WEAK")
     q = int(round(min(100, spread * 3 + np.mean([r["qual"] for r in rows]) / 2))) if rows else 0
 
+    # ── EXTREME DETECTOR (gate) ─────────────────────────────────────────
+    # Philosophy: the daily signal machine is replaced by a "rare moment detector".
+    # Only when ≥ arm_min extreme signals are simultaneously active do we
+    # consider a trade. Otherwise the correct answer is "NO SETUP — do nothing."
+    extreme = extmod.detect(df.iloc[:at + 1], cfg, dict(
+        up=up_pct, dn=dn_pct, bias=bias, strength=strength, q=q,
+        rsi=round(float(events.attrs["rsi"].iloc[at]), 0),
+    ), realflow=realflow, drp=drp_result)
+    if not extreme["armed"]:
+        # Override the composite conviction to a NEUTRAL WAIT and force the
+        # bias to FLAT so trade plans go to side='WAIT'. This is the intended
+        # behavior when the market is NOT at a true extreme.
+        bias = "FLAT"
+        strength = "NO SETUP"
+        up_pct, dn_pct = 50.0, 50.0
+        spread = 0.0
+        q = 0
+    else:
+        # RARE MOMENT ACTIVE — snap the directional bias to the extreme
+        # verdict so downstream trade planning aligns with the contrarian
+        # reading. We do NOT alter the composite conviction percentage
+        # (the conviction tells you how clean the rare setup is), but we
+        # force the side toward the contrarian extreme direction.
+        bias = extreme["direction"]
+        strength = f"ARMED ({extreme['n_active']}/{extreme['n_total']} szignál)"
+
     # forecast band: project the dominant move size over horizon
     close = df["close"]
     ret_h = close.pct_change(horizon)
@@ -147,4 +174,4 @@ def composite(df: pd.DataFrame, events: pd.DataFrame, db: dict, cfg: dict,
                 rsi=round(float(events.attrs["rsi"].iloc[at]), 0),
                 adx=round(float(events.attrs["adx"].iloc[at]), 1),
                 price=px, date=df.index[at].date(),
-                drprofit=drp_result)
+                drprofit=drp_result, extreme=extreme)
