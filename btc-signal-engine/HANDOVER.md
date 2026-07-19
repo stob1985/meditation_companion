@@ -51,9 +51,12 @@ Interval: `1,5,15,60,120,240,D`. Bármelyik coin: `data._fetch_okx("ETH-USDT","1
 | `sessions.py` | Asia/London/NY szekvencia-valószínűség (intraday) | `build(df,cfg)` |
 | `reversal.py` | sweep-reclaim fordulat („lesöpri a mélyt, visszahódít") | `detect(df,cfg)` |
 | `trade.py` | belépő/stop/T1/T2, zónák, hedge, void, **TRAP WATCH** (bikacsapda-figyelő) | `plan`, `zones`, `trap_watch` |
-| `backtest.py` | 3 backteszt: irány, cél-találat, szint-belépő (walk-forward) | `run`, `run_targets`, `run_levels` |
+| `backtest.py` | 4 backteszt: irány, cél-találat, szint-belépő, **swing** (walk-forward) | `run`, `run_targets`, `run_levels`, `run_swing` |
 | `position.py` | állapot-követés futások közt (BE/T1/T2/stop, --track) | `manage`, `open_from_plan` |
 | `dashboard.py` | terminál-render | `render(sig,liq,db,cfg,dwell,trade,overlays)` |
+| `volregime.py` | **SWING**: vol-kompresszió detektor (ATR%/BB-szélesség percentilis, squeeze) | `build(df,cfg)`, `series(df,cfg)` |
+| `etfflow.py` | **SWING**: US spot-ETF napi nettó flow (farside.co.uk, best-effort) | `build(cfg)` |
+| `swing.py` | **SWING réteg**: 6 kapu (heti regime, kompozit 65+, vol-timing, ETF, tömeg, gravitáció) → havi 1-3 nagy trade terv, 1/3 TP + Donchian(10) runner | `build(df,sig,liq,cfg,vol,etf,rf,grav)` |
 
 `run.py` = a belépési pont (mindent összeköt). `make_newsletter.py` = PDF hírlevél
 (matplotlib grafikon + PdfPages, az agency-agents-stob agent-módszertanaival).
@@ -97,6 +100,13 @@ plan = trade.plan(sig, liq, dw, cfg)          # entry/stop/T1/T2 vagy WAIT
 történeten ~+27% out-of-sample (~300 nap, 4/5 walk-forward ablak pozitív). **Szerény, valódi él —
 NEM garantált.** Alacsony trade-szám, magas szórás.
 
+`backtest.run_swing(df, events, cfg)` → a SWING mód (havi 1-3 nagy trade). A backtesztelhető
+kapukkal (heti regime + squeeze-timing + kompozit 65) mindhárom walk-forward ablakban pozitív
+(kb. +2..+6%, PF 1.2-3.0), de a minta NAGYON vékony (3-7 trade/ablak). A sweep tanulsága:
+Donchian(10) trail nyert (a 20/30 visszaadta a mozgást), a TP1-nek ≥1.5R-re kell lennie,
+a hard rr_big kapu kiéheztette a rendszert (0 = csak info). Élőben az ETF/tömeg/gravitáció
+kapuk EXTRA szűrők a backtesztelt magon felül — az élő réteg szigorúbb, mint a teszt.
+
 ## 8. ŐSZINTE korlátok (fontos a másik agentnek)
 
 - **Napi idősík**: az él a napi/HTF adaton van; **5m/15m intraday-en a kompozit zaj** (külön HTF-bias
@@ -113,3 +123,9 @@ NEM garantált.** Alacsony trade-szám, magas szórás.
 Valós likvidációs heatmap (Coinglass/force-order stream) a proxy mellé · intraday HTF-bias motor ·
 a trap_watch backtesztelése · a reversal 4H-figyelő bekötése a napi futásba · walk-forward
 súly-optimalizáló (túlillesztés ellen) · per-coin session/flow finomítás.
+
+SWING réteg következő körei: on-chain modul (MVRV-Z/SOPR/exchange-netflow — CoinMetrics
+community API, ingyen) · stablecoin-supply (DefiLlama) · derivatíva z-score (funding/OI a saját
+90 napos történetéhez képest, deleveraging-detektor) · Deribit opciós szintek (max-pain, nagy OI
+strike = mágnes a liquidity-konfluenciába) · FOMC/CPI naptár-kapu · a swing-kapuk súlyozott
+pontozása bináris helyett.

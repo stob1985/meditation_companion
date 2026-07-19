@@ -174,6 +174,27 @@ bolygó-aspektus + 500-mintás VDB a Python motorban él (az a mérvadó).
 
 ---
 
+## SWING réteg (havi 1-3 nagy trade) — ÚJ
+
+A napi/scalp motor fölé épült **additív** szelekciós+kezelési réteg (a régi
+stratégia változatlan). Cél: kevés, de NAGY mozgást megfogó trade. Modulok:
+
+- `engine/volregime.py` — vol-kompresszió detektor (ATR% + BB-szélesség
+  percentilis 1 éves ablakban; COMPRESSED = felhúzott rugó, innen indul nagy mozgás)
+- `engine/etfflow.py` — US spot-ETF napi nettó flow (farside.co.uk, best-effort;
+  2024 óta a legerősebb középtávú keresleti jel)
+- `engine/swing.py` — 6 kapu: ① heti regime (SMA200+EMA-struktúra, KÖTELEZŐ)
+  ② kompozit konv ≥65 a regime irányába (KÖTELEZŐ) ③ vol-timing (squeeze vagy
+  sweep-reclaim) ④ ETF-flow irány ⑤ tömeg/funding nem ellenszél ⑥ likviditás-
+  gravitáció egyezés. Ha a kapuk ≥66%-a áll → SWING TERV: 1/3 zárás TP1-nél
+  (≥1.5R), stop BE, a runner **Donchian(10)** trailinggel fut — nincs fix T2,
+  a havi mozgást nem vágjuk le.
+- `backtest.run_swing` — walk-forward teszt (`python run.py --backtest` kiírja).
+  Három ablakban pozitív (+2..+6%, PF 1.2–3.0), de a minta vékony (3–7 trade).
+
+A dashboardon külön **SWING RÉTEG** szekció mutatja a kapukat ✓/✗/· jelekkel,
+a 21 napos sávot és (ARMED esetén) a teljes tervet.
+
 ## Roadmap (következő lépések)
 - [ ] Valós likviditási adat opció (Coinglass / order-book) a proxy mellé
 - [x] Intraday session-detektor (Ázsia/London/NY) valós időbélyegekkel

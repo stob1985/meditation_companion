@@ -30,6 +30,11 @@ Amit eddig csináltunk és a stílusom:
   vékony minta), soha ne hamisíts zöld számot.
 - A saját tézisem: a nagy lenti likvidációs medence miatt BIKACSAPDA-kockázat —
   ezt a gép a LIQUIDITY GRAVITY + TRAP WATCH modullal figyeli.
+- ÚJ (2026-07-19): kapott egy SWING RÉTEGET (havi 1-3 nagy trade mód) — 6 kapu
+  (heti regime, kompozit 65+, vol-kompresszió timing, ETF-flow, tömeg/funding,
+  gravitáció) + 1/3 TP + Donchian(10) runner. A dashboardon "SWING RÉTEG" szekció;
+  backtest: `run.py --backtest` a SWING BACKTEST blokkot is kiírja. A scalp/napi
+  réteg VÁLTOZATLAN — a swing additív. Részletek: HANDOVER.md 3/7/9. pont.
 
 Első feladat: futtasd le a mai BTC-t a teljes stack-kel és add meg az
 egyértelmű jelzést (döntés + szintek + gravity + csapda-státusz).
@@ -37,7 +42,8 @@ egyértelmű jelzést (döntés + szintek + gravity + csapda-státusz).
 
 ## 3. Jelenlegi állás (a legutóbbi olvasat — kontextusnak)
 
-- **Rendszer kész, 22 modul aktív** (lásd HANDOVER.md 22-pontos lista).
+- **Rendszer kész, 22+3 modul aktív** (lásd HANDOVER.md modul-térkép; a +3 a
+  SWING réteg: volregime.py, etfflow.py, swing.py + backtest.run_swing).
 - **Legutóbbi kép (kb. 2026-07 közepe):** BTC ~62–65k sávban, kompozit ingadozik
   FLAT/UP körül, **a LIQUIDITY GRAVITY tartósan LEFELÉ húz** (nagy lenti mágnes
   ~57–58k, x70–x79) → a **bikacsapda a fő szcenárió** egy 67–73k-s rally esetén.

@@ -244,3 +244,149 @@ def run_levels(df: pd.DataFrame, events: pd.DataFrame, cfg: dict, train_frac: fl
         conv_min=conv_min, partial=partial,
         note="LEVEL-ENTRY + partial TP; walk-forward validated; out-of-sample; "
              "net of fees/funding. Modest real edge - NOT a guaranteed money printer.")
+
+
+def run_swing(df: pd.DataFrame, events: pd.DataFrame, cfg: dict, train_frac: float = 0.7,
+              start_equity: float = 1000.0):
+    """SWING-mode backtest: few trades, big moves, Donchian runner.
+
+    Only the BACKTESTABLE swing gates are used (weekly regime + raised-bar
+    composite + vol-compression timing); ETF flow / crowd / gravity are
+    live-only overlays with no deep history, so the live layer is STRICTER
+    than this test - honest direction of bias.
+
+    Entry at the signal close (market). Management mirrors swing.build():
+    1/3 off at the nearest opposing cluster, stop to BE, then the runner
+    trails a Donchian(20) stop with NO fixed T2. Net of fees + funding.
+    """
+    from . import volregime
+    sc = cfg.get("swing", {})
+    conv_min = float(sc.get("conv_min", 70))
+    don = int(sc.get("donchian_bars", 20))
+    buf = float(sc.get("stop_buffer_atr", 0.5))
+    stop_max = float(sc.get("stop_max_atr", 4.0))
+    tp1_frac = float(sc.get("tp1_frac", 0.33))
+    max_hold = int(sc.get("max_hold_bars", 60))
+    recent = int(cfg.get("volregime", {}).get("recent_bars", 10))
+    tc = cfg.get("trade", {})
+    taker, fund = float(tc.get("taker_fee", 0.0005)), float(tc.get("funding_daily", 0.0003))
+    bet = float(sc.get("bet_usd", tc.get("bet_usd", 100)))
+    lev = int(sc.get("leverage", 5))
+    notion = bet * lev
+
+    n = len(df)
+    split = int(n * train_frac)
+    close = df["close"]
+    db = vdb.build(close.iloc[:split], events.iloc[:split],
+                   cap=cfg["vdb"]["cap"], horizons=tuple(cfg["vdb"]["horizons"]))
+    vr = volregime.series(df, cfg)
+    sma200 = close.rolling(200, min_periods=100).mean()
+    ema50 = close.ewm(span=50).mean()
+    ema200 = close.ewm(span=200).mean()
+    hi, lo, cl = df["high"].values, df["low"].values, close.values
+
+    equity = start_equity
+    pos = None
+    trades, holds = [], []
+    for i in range(split, n):
+        a = _atr_at(df, i)
+        if pos:
+            side, held = pos["side"], i - pos["o"]
+            # TP1: third off + stop to break-even
+            if not pos["p1"]:
+                t1hit = hi[i] >= pos["t1"] if side == "LONG" else lo[i] <= pos["t1"]
+                if t1hit:
+                    pnl = pos["q"] * tp1_frac * ((pos["t1"] - pos["e"]) if side == "LONG"
+                                                 else (pos["e"] - pos["t1"]))
+                    equity += pnl - taker * notion * tp1_frac
+                    pos["p1"] = True
+                    pos["stop"] = max(pos["stop"], pos["e"]) if side == "LONG" \
+                        else min(pos["stop"], pos["e"])
+            # runner: trail the Donchian stop (previous `don` bars, no lookahead)
+            j0 = max(0, i - don)
+            tr_stop = (float(df["low"].iloc[j0:i].min()) - buf * a) if side == "LONG" \
+                else (float(df["high"].iloc[j0:i].max()) + buf * a)
+            if pos["p1"]:
+                pos["stop"] = max(pos["stop"], tr_stop) if side == "LONG" \
+                    else min(pos["stop"], tr_stop)
+            adverse = lo[i] <= pos["stop"] if side == "LONG" else hi[i] >= pos["stop"]
+            ex = pos["stop"] if adverse else (cl[i] if held >= max_hold else None)
+            if ex is not None:
+                frac = (1 - tp1_frac) if pos["p1"] else 1.0
+                pnl = pos["q"] * frac * ((ex - pos["e"]) if side == "LONG" else (pos["e"] - ex))
+                equity += pnl - taker * notion * frac - fund * notion * held
+                trades.append(equity - pos["eq0"]); holds.append(held); pos = None
+            else:
+                continue
+        if pos is None and i < n - 1:
+            px = cl[i]
+            s2, e5, e2 = sma200.iloc[i], ema50.iloc[i], ema200.iloc[i]
+            if not np.isfinite(s2):
+                continue
+            regime = "BULL" if (px > s2 and e5 > e2) else \
+                     "BEAR" if (px < s2 and e5 < e2) else "MIXED"
+            if regime == "MIXED":
+                continue
+            if not bool(vr["squeeze"].iloc[max(0, i - recent):i + 1].any()):
+                continue                                      # timing gate
+            sub = df.iloc[:i + 1]
+            dw = dwellmod.build(sub, cfg)
+            sig = signal.composite(sub, events.iloc[:i + 1], db, cfg, at=-1, dwell=dw)
+            want = "UP" if regime == "BULL" else "DOWN"
+            if want == "DOWN" and sc.get("long_only", False):
+                continue                                  # BTC daily drift: shorts optional
+            conv = sig["up"] if want == "UP" else sig["dn"]
+            if sig["bias"] != want or conv < conv_min:
+                continue
+            side = "LONG" if want == "UP" else "SHORT"
+            j0 = max(0, i - don)
+            liqq = liquidity.build(sub, cfg)
+            tp1_min_r = float(sc.get("tp1_min_r", 1.0))
+            rr_big_min = float(sc.get("rr_big_min", 1.5))
+            if side == "LONG":
+                stop = float(df["low"].iloc[j0:i].min()) - buf * a
+                stop = max(stop, px - stop_max * a)
+                risk0 = px - stop
+                if risk0 <= 0:
+                    continue
+                res = sorted(c["price"] for c in liqq["clusters_above"]
+                             if c["price"] >= px + tp1_min_r * risk0)
+                t1 = res[0] if res else px + max(tp1_min_r * risk0, 2 * a)
+                big = max((c for c in liqq["clusters_above"]), key=lambda c: c["count"],
+                          default=None)
+            else:
+                stop = float(df["high"].iloc[j0:i].max()) + buf * a
+                stop = min(stop, px + stop_max * a)
+                risk0 = stop - px
+                if risk0 <= 0:
+                    continue
+                sup = sorted((c["price"] for c in liqq["clusters_below"]
+                              if c["price"] <= px - tp1_min_r * risk0), reverse=True)
+                t1 = sup[0] if sup else px - max(tp1_min_r * risk0, 2 * a)
+                big = max((c for c in liqq["clusters_below"]), key=lambda c: c["count"],
+                          default=None)
+            # the "big move" gate (mirrors swing.build): the big magnet must sit
+            # >= rr_big_min R away, else the wide stop is not worth the target
+            if big is not None and abs(big["price"] - px) / risk0 < rr_big_min:
+                continue
+            equity -= taker * notion                          # entry fee
+            pos = dict(side=side, e=px, stop=stop, t1=t1,
+                       q=notion / px, o=i, p1=False, eq0=equity)
+
+    nt = len(trades)
+    wins = sum(1 for t in trades if t > 0)
+    months = max(1e-9, (n - split) / 30.4)
+    gains = sum(t for t in trades if t > 0)
+    losses = -sum(t for t in trades if t < 0)
+    return dict(
+        window=f"{df.index[split].date()} -> {df.index[-1].date()}",
+        start_equity=start_equity, final_equity=round(equity, 2),
+        return_pct=round((equity / start_equity - 1) * 100, 1),
+        trades=nt, wins=wins, win_pct=round(wins / nt * 100, 1) if nt else 0,
+        trades_per_month=round(nt / months, 2),
+        avg_hold_days=round(float(np.mean(holds)), 1) if holds else None,
+        profit_factor=round(gains / losses, 2) if losses > 0 else None,
+        conv_min=conv_min,
+        note="SWING mode: weekly regime + squeeze timing + raised composite bar; "
+             "1/3 TP + Donchian runner. FEW trades -> thin sample; the live layer "
+             "adds ETF/crowd/gravity gates on top (stricter than this test).")

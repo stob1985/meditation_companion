@@ -110,3 +110,38 @@ trap:
   ls_hot: 1.6            # crowd L/S ratio that marks a crowded side
   funding_hot: 2.0e-5    # funding level that marks an overheated side
   zone_reach_atr: 6.0    # how far (ATR) the bait zone may sit from price
+
+# ---- SWING layer: the "1-3 big trades per month" mode ---------------------
+# ADDITIVE selection+management layer on top of the daily engine; the scalp
+# trade plan above is untouched. See engine/swing.py.
+volregime:
+  enabled: true
+  atr_len: 14
+  bb_len: 20
+  pctile_lookback: 365   # 1y window for the ATR%/BB-width percentile ranks
+  squeeze_pctile: 25     # both gauges below this -> COMPRESSED (coiled energy)
+  expand_pctile: 75      # both above this -> EXPANDED (move is mature)
+  recent_bars: 10        # a squeeze within this many bars still counts (breakout bar)
+
+etfflow:
+  enabled: true          # US spot-ETF daily net flow (farside.co.uk, best-effort)
+
+swing:
+  enabled: true
+  conv_min: 65           # RAISED composite bar (scalp uses 62) - few, big trades.
+                         # Sweep: 65 beat 62 and 70 across all 3 walk-forward windows.
+  min_gate_ratio: 0.66   # of the AVAILABLE gates this share must agree
+  reach_atr: 3.0         # pullback entry level may sit this far (ATR)
+  stop_buffer_atr: 0.5   # wider buffer beyond the Donchian structure
+  stop_max_atr: 2.5      # risk cap: stop never further than this many ATR
+  donchian_bars: 10      # runner trail = Donchian(10). Sweep result: 10 is the
+                         # robust winner; 20/30 gave back the whole move.
+  rr_big_min: 0.0        # 0 = info only. As a HARD gate it starved the system
+                         # (wide swing stop makes 1.5R+ magnets near-impossible).
+  tp1_min_r: 1.5         # TP1 at least this many R away (skip too-close clusters)
+  tp1_frac: 0.33         # take only a THIRD at TP1 (scalp takes half)
+  long_only: false       # shorts in BEAR regime EARNED their place in the sweep
+  bet_usd: 100
+  leverage: 5            # wide swing stops -> low leverage by design
+  max_hold_bars: 60      # give the monthly move room (backtest cap)
+  horizon: 21            # forecast band horizon (trading days ~ 1 month)

@@ -12,7 +12,8 @@ import yaml
 from engine import (data, events as ev, vdb, signal, liquidity, dashboard,
                     backtest, dwell as dwellmod, trade as trademod,
                     flow as flowmod, macro as macromod, sessions as sessmod,
-                    realflow as rfmod, position)
+                    realflow as rfmod, position, volregime as volmod,
+                    etfflow as etfmod, swing as swingmod)
 
 
 def load_cfg(path="config.yaml"):
@@ -79,6 +80,16 @@ def main():
     overlays["trap"] = trademod.trap_watch(sig, ca, cb, liq["price"], liq["atr"],
                                            dwell or {}, overlays.get("realflow"), cfg)
 
+    # ---- SWING layer (the "1-3 big trades per month" mode) --------------
+    overlays["vol"] = volmod.build(df, cfg)
+    if cfg["data"]["source"] == "live":
+        overlays["etf"] = etfmod.build(cfg)
+    g = liquidity.gravity(ca, cb, liq["price"], liq["atr"])
+    overlays["swing"] = swingmod.build(df, sig, liq, cfg,
+                                       vol=overlays.get("vol"),
+                                       etf=overlays.get("etf"),
+                                       rf=overlays.get("realflow"), grav=g)
+
     print(dashboard.render(sig, liq, db, cfg, dwell=dwell, trade=trade, overlays=overlays))
 
     # ---- tracked position (stateful across runs) -----------------------
@@ -117,6 +128,11 @@ def main():
         print("\n OUT-OF-SAMPLE BACKTEST")
         print(" " + "-" * 60)
         for k, v in bt.items():
+            print(f"   {k:26s}: {v}")
+        sw = backtest.run_swing(df, events, cfg)
+        print("\n SWING BACKTEST (few big trades)")
+        print(" " + "-" * 60)
+        for k, v in sw.items():
             print(f"   {k:26s}: {v}")
 
 

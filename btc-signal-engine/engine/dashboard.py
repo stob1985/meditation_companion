@@ -196,6 +196,44 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
             L.append(f"   👁 {tw['note']}")
         L.append("=" * 92)
 
+    # ---- SWING layer (1-3 big trades / month) --------------------------
+    if overlays and overlays.get("swing"):
+        sw = overlays["swing"]
+        icon = "⚡" if sw["status"] == "ARMED" else "⏳"
+        side_txt = sw.get("side") or "—"
+        L.append(f" SWING RÉTEG (havi 1-3 nagy trade)   {icon} {sw['status']}"
+                 f"   irány: {side_txt}   kapuk {sw['n_ok']}/{sw['n_avail']}")
+        lbl = {"weekly": "heti regime", "composite": "kompozit konv", "timing": "időzítés (vol)",
+               "etf": "ETF flow", "crowd": "tömeg/funding", "gravity": "gravitáció"}
+        for k, gd in sw["gates"].items():
+            mark = "✓" if gd["ok"] else ("·" if gd["ok"] is None else "✗")
+            L.append(f"   {mark} {lbl.get(k, k):16s} {gd['detail']}")
+        vol = overlays.get("vol")
+        if vol and vol.get("state") not in (None, "UNKNOWN"):
+            wk = f"  heti-BBW p{vol['weekly_bbw_pctile']:.0f}" if vol.get("weekly_bbw_pctile") is not None else ""
+            L.append(f"   vol-regime: {vol['state']}{wk}  ·  {vol['note']}")
+        if sw.get("band"):
+            L.append(f"   {sw['horizon']}-napos sáv:  ▲ {sw['band'][0]:,.0f}   ▼ {sw['band'][1]:,.0f}")
+        if sw["status"] == "ARMED":
+            safe = "OK" if sw["liq_safe"] else "⚠ UNSAFE"
+            L.append(f"   ── SWING TERV ── {sw['side']}  (konv {sw['conv']}%)")
+            L.append(f"   entry  {sw['entry']:>11.1f}  {sw['entry_type']}")
+            L.append(f"   stop   {sw['stop']:>11.1f}   (-{sw['risk']:.0f} · Donchian-struktúra, tág)")
+            L.append(f"   TP1    {sw['tp1']:>11.1f}   (R:R {sw['rr1']})  → {int(sw['tp1_frac']*100)}% zárás + BE")
+            big = f"{sw['target_big']:,.1f} (R:R {sw['rr_big']})" if sw.get("target_big") else "n/a"
+            L.append(f"   nagy cél {big}   ·  runner: {sw['trail']}")
+            L.append(f"   size   bet ${sw['bet_usd']:.0f} × {sw['leverage']}x = ${sw['notional']:.0f}"
+                     f"  ·  {sw['qty']} BTC   liq {sw['liq_price']:,.1f} [{safe}]")
+            L.append(f"   ▸ {sw['plan_note']}")
+        else:
+            L.append(f"   ▸ WAIT · {sw.get('reason', '')}")
+        etf = overlays.get("etf")
+        if etf:
+            L.append(f"   ETF flow: utolsó nap {etf['last'][1]:+,.0f}M$ ({etf['last'][0]})  "
+                     f"5d {etf['sum5']:+,.0f}M$  10d {etf['sum10'] if etf['sum10'] is not None else '—'}M$"
+                     f"  trend {etf['trend']}  → {etf['bias']}")
+        L.append("=" * 92)
+
     # ---- BUY / SHORT zones (always shown) ------------------------------
     if overlays and overlays.get("zones"):
         z = overlays["zones"]
