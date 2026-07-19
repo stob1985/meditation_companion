@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 
 
-_URL = "https://farside.co.uk/btc/"
+_URLS = {"BTC": "https://farside.co.uk/btc/", "ETH": "https://farside.co.uk/eth/"}
 _UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                      "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"}
 
@@ -34,11 +34,15 @@ def _num(cell: str) -> float | None:
     return -v if neg else v
 
 
-def fetch_rows(limit: int = 40) -> list[tuple[str, float]] | None:
-    """[(date_str, total_flow_musd)] most-recent-last; None if unreachable."""
+def fetch_rows(limit: int = 40, asset: str = "BTC") -> list[tuple[str, float]] | None:
+    """[(date_str, total_flow_musd)] most-recent-last; None if unreachable.
+    asset: BTC or ETH - only these two have US spot ETFs with a farside table."""
+    url = _URLS.get(asset.upper())
+    if not url:
+        return None
     try:
         import requests
-        r = requests.get(_URL, headers=_UA, timeout=15)
+        r = requests.get(url, headers=_UA, timeout=15)
         r.raise_for_status()
         html = r.text
     except Exception:                                       # noqa: BLE001
@@ -62,7 +66,10 @@ def build(cfg: dict) -> dict | None:
     ec = cfg.get("etfflow", {})
     if not ec.get("enabled", True):
         return None
-    rows = fetch_rows()
+    # coin comes from realflow.inst_family (e.g. 'ETH-USDT') so a per-coin run
+    # never shows another asset's ETF flow; only BTC/ETH have US spot ETFs.
+    asset = ec.get("asset") or cfg.get("realflow", {}).get("inst_family", "BTC-USDT").split("-")[0]
+    rows = fetch_rows(asset=asset)
     if not rows:
         return None
     vals = [v for _, v in rows]
@@ -78,6 +85,7 @@ def build(cfg: dict) -> dict | None:
         bias = "DOWN" if trend != "improving" else "DOWN-improving"
     else:
         bias = "NEUTRAL"
-    return dict(last=rows[-1], sum5=round(sum5, 1), sum10=(round(sum10, 1) if sum10 is not None else None),
+    return dict(asset=asset.upper(), last=rows[-1], sum5=round(sum5, 1),
+                sum10=(round(sum10, 1) if sum10 is not None else None),
                 prev5=(round(prev5, 1) if prev5 is not None else None),
                 trend=trend, bias=bias, n_days=len(rows))

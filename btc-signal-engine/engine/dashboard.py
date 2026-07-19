@@ -32,7 +32,7 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
     H = cfg["signal"]["horizon"]
     L = []
     L.append("=" * 92)
-    L.append(f" BTCUSDT  ·  {sig['date']}  ·  px {sig['price']:.1f}   "
+    L.append(f" {cfg['data']['symbol']}  ·  {sig['date']}  ·  px {sig['price']:.1f}   "
              f"RSI {sig['rsi']:.0f}  ADX {sig['adx']:.1f}  "
              f"MTF {sig['mtf']:+d} ({sig['regime']})")
     L.append("=" * 92)
@@ -229,7 +229,7 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
             L.append(f"   ▸ WAIT · {sw.get('reason', '')}")
         etf = overlays.get("etf")
         if etf:
-            L.append(f"   ETF flow: utolsó nap {etf['last'][1]:+,.0f}M$ ({etf['last'][0]})  "
+            L.append(f"   ETF flow ({etf.get('asset', 'BTC')}): utolsó nap {etf['last'][1]:+,.0f}M$ ({etf['last'][0]})  "
                      f"5d {etf['sum5']:+,.0f}M$  10d {etf['sum10'] if etf['sum10'] is not None else '—'}M$"
                      f"  trend {etf['trend']}  → {etf['bias']}")
         L.append("=" * 92)
