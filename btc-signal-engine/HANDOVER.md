@@ -58,8 +58,22 @@ Interval: `1,5,15,60,120,240,D`. Bármelyik coin: `data._fetch_okx("ETH-USDT","1
 | `etfflow.py` | **SWING**: US spot-ETF napi nettó flow (farside.co.uk, best-effort) | `build(cfg)` |
 | `swing.py` | **SWING réteg**: 6 kapu (heti regime, kompozit 65+, vol-timing, ETF, tömeg, gravitáció) → havi 1-3 nagy trade terv, 1/3 TP + Donchian(10) runner | `build(df,sig,liq,cfg,vol,etf,rf,grav)` |
 
-`run.py` = a belépési pont (mindent összeköt). `make_newsletter.py` = PDF hírlevél
+`run.py` = a belépési pont (mindent összeköt). `make_newsletter.py` = részletes PDF hírlevél
 (matplotlib grafikon + PdfPages, az agency-agents-stob agent-módszertanaival).
+`make_simple_newsletter.py` = **egyszerű, 5 oldalas "mindenki megérti" PDF** (lámpa + mágnes
+metafora, a motor számaiból; a képek a `newsletter/img/` mappában — fixek, újrahasznosíthatók,
+nem kell újragenerálni). Kimenet: `newsletter/BTC_napi_jelentes.pdf`.
+
+## 3b. Napi használat (a "termék" 3 parancsban)
+
+```bash
+python run.py --source live                 # 1) teljes dashboard (BTC) — a döntés innen jön
+python run.py --source live --backtest      # 2) + walk-forward backteszt
+python make_simple_newsletter.py            # 3) egyszerű PDF a mai számokból
+```
+Másik coin: `config.yaml` → `data.symbol` (pl. `ETHUSDT`) **és** `realflow.inst_family`
+(pl. `ETH-USDT`) — mindkettőt át kell írni, különben a flow-adat BTC marad.
+Nem kell API-kulcs, nem kell fizetős adat. Internet kell (OKX/Binance.US/HL/Kraken/Coinbase).
 
 ## 4. A stratégia / koncepciók (a tudás lényege)
 
