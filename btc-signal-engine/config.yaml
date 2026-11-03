@@ -46,7 +46,10 @@ signal:
 
 liquidity:
   swing_lookback: 5      # image: Piv 5
-  history_bars: 200
+  history_bars: 400      # 200 clipped the upper map (missed the 95k/99k pools); 400 is balanced
+  # time-decay: a swing's projected liquidation weight halves every N bars (positions
+  # opened at old pivots are mostly gone). gravity/trap use the decayed weight, not count.
+  decay_half_life: 365
   zone_mult: 0.3         # image: Zones ATRx0.3
   cvd_bars: 30
   # tiered maintenance margin (spot terms): higher leverage liquidates earlier

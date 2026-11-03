@@ -39,8 +39,12 @@ def _swings(df: pd.DataFrame, lb: int):
     return sh, sl
 
 
-def _cluster(levels, width):
-    """Greedy 1-D clustering; returns list of (price, count, members)."""
+def _cluster(levels, width, half_life=None):
+    """Greedy 1-D clustering. levels: (price, lev, side, age_bars).
+    `count` = raw member count (int, as before). `weight` = time-decayed sum:
+    each member contributes 0.5 ** (age / half_life) — a pivot from a year ago
+    has mostly been liquidated/closed already, so it should pull less than a
+    fresh one. `age` = bars since the freshest member's pivot."""
     if not levels:
         return []
     levels = sorted(levels, key=lambda x: x[0])
@@ -55,7 +59,13 @@ def _cluster(levels, width):
     out = []
     for c in clusters:
         price = np.mean([x[0] for x in c])
-        out.append(dict(price=_r(price), count=len(c),
+        ages = [x[3] for x in c]
+        if half_life:
+            w = sum(0.5 ** (a / half_life) for a in ages)
+        else:
+            w = float(len(c))
+        out.append(dict(price=_r(price), count=len(c), weight=round(w, 2),
+                        age=int(min(ages)),
                         tiers=sorted({x[1] for x in c}),
                         side=c[0][2]))
     return out
@@ -75,21 +85,26 @@ def build(df: pd.DataFrame, cfg: dict) -> dict:
         return float(mmr_tiers.get(lev, mmr_tiers.get(str(lev), MMR)))
 
     sh, sl = _swings(d, lb)
+    half_life = cfg["liquidity"].get("decay_half_life")
+    pos = {ts: i for i, ts in enumerate(d.index)}
+    last = len(d) - 1
     levels = []
     # shorts entered at swing HIGHS -> liquidate ABOVE (tiered maintenance margin)
-    for entry in sh.values:
+    for ts, entry in sh.items():
+        age = last - pos[ts]
         for lev in TIERS:
             lv = entry * (1 + 1 / lev - _mmr(lev))
             if lv > price:
-                levels.append((lv, lev, "short"))
+                levels.append((lv, lev, "short", age))
     # longs entered at swing LOWS -> liquidate BELOW
-    for entry in sl.values:
+    for ts, entry in sl.items():
+        age = last - pos[ts]
         for lev in TIERS:
             lv = entry * (1 - 1 / lev + _mmr(lev))
             if lv < price:
-                levels.append((lv, lev, "long"))
+                levels.append((lv, lev, "long", age))
 
-    clusters = _cluster(levels, width)
+    clusters = _cluster(levels, width, half_life)
 
     # tap count: how many bars probed within `width` of each cluster price.
     # heavily-tapped levels are "worn" (power-of-three: they tend to break),
@@ -177,6 +192,8 @@ def _merge_venues(items, width):
         tiers = sorted({t for c, _ in g for t in c["tiers"]})
         out.append(dict(price=round(float(np.mean(prices)), 1),
                         count=sum(c["count"] for c, _ in g),
+                        weight=round(sum(c.get("weight", c["count"]) for c, _ in g), 2),
+                        age=min(c.get("age", 0) for c, _ in g),
                         venues=venues, n_venues=len(venues), tiers=tiers))
     return out
 
@@ -227,15 +244,22 @@ def gravity(clusters_above, clusters_below, price, atr) -> dict:
     AND closer pool wins ("the market hunts the bigger pool"). This is the
     user's bull-trap insight formalised: a rally into small opposing clusters
     while a much larger pool sits below is trap-prone, and vice versa.
+
+    Size = the time-decayed `weight` (falls back to raw `count`): a pool
+    projected from a year-old pivot is mostly gone, so it must not out-pull a
+    fresh one just because it was big once.
     """
     a = max(float(atr), 1e-9)
 
+    def size(c):
+        return c.get("weight", c["count"])
+
     def pull(cl):
-        return sum(c["count"] / (1.0 + abs(c["price"] - price) / a) for c in cl)
+        return sum(size(c) / (1.0 + abs(c["price"] - price) / a) for c in cl)
 
     wa, wb = pull(clusters_above), pull(clusters_below)
-    ba = max(clusters_above, key=lambda c: c["count"]) if clusters_above else None
-    bb = max(clusters_below, key=lambda c: c["count"]) if clusters_below else None
+    ba = max(clusters_above, key=size) if clusters_above else None
+    bb = max(clusters_below, key=size) if clusters_below else None
     ratio = (wb / wa) if wa > 0 else float("inf")
     direction = "DOWN" if wb > 1.25 * wa else "UP" if wa > 1.25 * wb else "BALANCED"
     return dict(above_pull=round(wa, 1), below_pull=round(wb, 1),

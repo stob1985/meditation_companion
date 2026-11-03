@@ -173,10 +173,14 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
         ba, bb = g.get("biggest_above"), g.get("biggest_below")
         L.append(f" LIQUIDITY GRAVITY   {arrow}   (lenti húzóerő {g.get('below_pull')} vs fenti {g.get('above_pull')}"
                  + (f", arány {g.get('ratio')}" if g.get('ratio') else "") + ")")
+        def _mag(c):
+            w = c.get("weight")
+            tag = f"x{c['count']}" + (f" súly {w:.0f}" if w is not None and round(w) != c["count"] else "")
+            return f"{c['price']:,.0f} ({tag})"
         if ba or bb:
-            L.append("   legnagyobb mágnes:  "
-                     + (f"LENT {bb['price']:,.0f} (x{bb['count']})" if bb else "lent —") + "   vs   "
-                     + (f"FENT {ba['price']:,.0f} (x{ba['count']})" if ba else "fent —"))
+            L.append("   legnagyobb mágnes (idő-súlyozott):  "
+                     + (f"LENT {_mag(bb)}" if bb else "lent —") + "   vs   "
+                     + (f"FENT {_mag(ba)}" if ba else "fent —"))
         if tw.get("zone"):
             z1, z2 = tw["zone"]
             icon = "🪤" if tw["status"] == "ARMED" else "👁"
