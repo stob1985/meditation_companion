@@ -82,6 +82,9 @@ Nem kell API-kulcs, nem kell fizetős adat. Internet kell (OKX/Binance.US/HL/Kra
 - **Dwell-szabály**: az ár helye a legközelebbi blokkhoz képest adja az irányt.
 - **Likvidációs mágnesek**: swing-pivot × tőkeáttét → klaszterek; 5 tőzsdén egyező = erős (`x45` = 45 klaszter).
 - **LIQUIDITY GRAVITY**: `méret/(1+ATR-táv)` húzóerő fent vs lent → melyik medence nyer.
+  A „méret" az **idő-súlyozott `weight`** (nem a nyers `count`): minden vetített szint
+  `0.5^(kor/decay_half_life)` súlyt kap (1 éves pivot = fél súly — a régi pozíciók nagyrészt már
+  likvidálódtak). `history_bars: 400` (a 200 levágta a fenti térképet és lefelé torzított).
 - **TRAP WATCH**: ha a gravitáció LE, de az ár a fenti kis klaszterek felé megy → bikacsapda; 5 jel
   (CVD-divergencia, tömeg-long, funding forró, nincs dwell-acceptance, sweep-reject) → WATCH/ARMED + short-terv a nagy lenti mágnesre.
 - **Szint-belépő + részleges TP**: nem minden gyertyán, hanem a struktúra-szintnél; T1-nél fél zár + stop BE, T2 runner.
