@@ -64,6 +64,12 @@ Interval: `1,5,15,60,120,240,D`. Bármelyik coin: `data._fetch_okx("ETH-USDT","1
 metafora, a motor számaiból; a képek a `newsletter/img/` mappában — fixek, újrahasznosíthatók,
 nem kell újragenerálni). Kimenet: `newsletter/BTC_napi_jelentes.pdf`.
 
+`pine/liq_map.pine` = **TradingView-indikátor** (Pine v6): a `liquidity.py` proxy-térképe
+(pivotok × 10/25/50/100x, sávos MMR, ATR×0,3 klaszter, 365 napos idő-súly) akár 5 tőzsdén,
+±5/10/20%-os sávösszesítés, gravitáció, kisöpört zónák, opcionális OI/Bitfinex L/S, és
+`alert()` riasztások (záró egy szint fölött/alatt, klaszter elérése). Az algoritmus egy
+tőzsdén klaszterre pontosan egyezik a Python-motorral (validálva).
+
 ## 3b. Napi használat (a "termék" 3 parancsban)
 
 ```bash
