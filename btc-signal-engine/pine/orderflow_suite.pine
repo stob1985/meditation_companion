@@ -31,11 +31,11 @@ vpShow   = input.bool(true, "Hisztogram mutatása", group = grpP)
 grpV = "VWAP-ok"
 showDV = input.bool(true, "Napi VWAP ±1σ", group = grpV)
 av1On  = input.bool(true, "", inline = "a1", group = grpV)
-av1T   = input.time(timestamp("UTC", 2026, 11, 21, 6, 0), "AVWAP 1 (mély 55 134)", inline = "a1", group = grpV)
+av1T   = input.time(timestamp("21 Nov 2026 06:00 +0000"), "AVWAP 1 (mély 55 134)", inline = "a1", group = grpV)
 av2On  = input.bool(true, "", inline = "a2", group = grpV)
-av2T   = input.time(timestamp("UTC", 2026, 11, 1, 0, 0), "AVWAP 2 (nov. nyitó)", inline = "a2", group = grpV)
+av2T   = input.time(timestamp("01 Nov 2026 00:00 +0000"), "AVWAP 2 (nov. nyitó)", inline = "a2", group = grpV)
 av3On  = input.bool(false, "", inline = "a3", group = grpV)
-av3T   = input.time(timestamp("UTC", 2026, 9, 21, 0, 0), "AVWAP 3 (87,4k csúcs)", inline = "a3", group = grpV)
+av3T   = input.time(timestamp("21 Sep 2026 00:00 +0000"), "AVWAP 3 (87,4k csúcs)", inline = "a3", group = grpV)
 showPD = input.bool(true, "Előző nap/hét csúcs-mély", group = grpV)
 
 grpC = "CVD (5 tőzsde)"
