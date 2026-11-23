@@ -70,6 +70,12 @@ nem kell újragenerálni). Kimenet: `newsletter/BTC_napi_jelentes.pdf`.
 `alert()` riasztások (záró egy szint fölött/alatt, klaszter elérése). Az algoritmus egy
 tőzsdén klaszterre pontosan egyezik a Python-motorral (validálva).
 
+`pine/orderflow_suite.pine` = **TradingView orderflow-összesítő** (Pine v6, egy indikátor): volumenprofil
+(VPOC/VAH/VAL: látható tartomány / mai nap / előző nap / N bar), napi VWAP ±1σ, 3 Anchored VWAP,
+előző nap/hét H/L, CVD perp (Binance/Bybit/OKX) + spot (Binance/Coinbase) alacsonyabb idősíkú
+gyertyákból (tick-szabály), ΔOI, Coinbase-prémium, USDT.D, és CVD×OI "négy negyed" értelmezés, riasztásokkal.
+Pine-ban NEM elérhető: orderbook/DOM, kötésenkénti footprint, valós likvidációs feed.
+
 ## 3b. Napi használat (a "termék" 3 parancsban)
 
 ```bash
