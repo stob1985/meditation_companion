@@ -109,8 +109,10 @@ int tfs = timeframe.in_seconds()
 string ltfAuto = tfs <= 900 ? "1" : tfs <= 3600 ? "5" : tfs <= 14400 ? "15" : "60"
 string ltf = ltfIn == "Auto" ? ltfAuto : ltfIn
 
-// tick-rule delta from lower-timeframe candles (close > open = buy volume)
+// tick-rule delta from lower-timeframe candles (close > open = buy volume),
+// normalised to USD: venues quote volume either in BTC (base) or in USD (quote)
 f_delta(string sym, string tfLow) =>
+    string vt = request.security(sym, "1D", syminfo.volumetype, ignore_invalid_symbol = true)
     [c, o, v] = request.security_lower_tf(sym, tfLow, [close, open, volume], ignore_invalid_symbol = true)
     float d = 0.0
     int n = na(c) or na(o) or na(v) ? 0 : c.size()
@@ -119,7 +121,8 @@ f_delta(string sym, string tfLow) =>
             cc = c.get(i)
             oo = o.get(i)
             vv = v.get(i)
-            d += cc > oo ? vv : cc < oo ? -vv : 0.0
+            usd = vt == "quote" ? vv : vv * cc
+            d += cc > oo ? usd : cc < oo ? -usd : 0.0
     n > 0 ? d : na
 
 dp1 = f_delta(p1, ltf)
@@ -164,6 +167,11 @@ float spotWin = math.sum(dSpot, lbN)
 float oiWin = oi - oi[lbN]
 string quad = na(oiWin) ? "OI n/a" : cvdWin >= 0 and oiWin >= 0 ? "ÚJ LONGOK nyílnak (vétel + OI nő)" : cvdWin < 0 and oiWin >= 0 ? "ÚJ SHORTOK nyílnak (eladás + OI nő)" : cvdWin >= 0 and oiWin < 0 ? "SHORT-FEDEZÉS / squeeze (vétel + OI csökken)" : "LONG-KISZÁLLÁS / likvidálás (eladás + OI csökken)"
 string driver = math.abs(spotWin) > math.abs(perpWin) ? "SPOT vezeti" : "PERP vezeti"
+float wP1 = math.sum(nz(dp1), lbN)
+float wP2 = math.sum(nz(dp2), lbN)
+float wP3 = math.sum(nz(dp3), lbN)
+float wS1 = math.sum(nz(ds1), lbN)
+float wS2 = math.sum(nz(ds2), lbN)
 
 // ----------------------------- volume profile ------------------------
 var int dayStart = na
@@ -276,6 +284,9 @@ f_pos(float p) =>
 f_num(float x) =>
     na(x) ? "n/a" : (x >= 0 ? "+" : "") + str.tostring(x, "#,##0.0")
 
+f_m(float x) =>
+    na(x) ? "n/a" : (x >= 0 ? "+" : "") + str.tostring(x / 1e6, "#,##0.0") + "M $"
+
 if barstate.islast
     f_c(0, 0, "ORDERFLOW ÖSSZESÍTŐ", color.new(#e3b341, 0))
     f_c(0, 1, "Napi VWAP", cMut)
@@ -292,9 +303,9 @@ if barstate.islast
     f_c(0, 4, "Előző nap / hét", cMut)
     f_c(1, 4, "nap " + f_px(pdh) + " / " + f_px(pdl), cTxt)
     f_c(2, 4, "hét " + f_px(pwh) + " / " + f_px(pwl), cTxt)
-    f_c(0, 5, "CVD " + str.tostring(lbN) + " bar (BTC)", cMut)
-    f_c(1, 5, "perp " + f_num(perpWin), cPerp)
-    f_c(2, 5, "spot " + f_num(spotWin), cSpot)
+    f_c(0, 5, "CVD " + str.tostring(lbN) + " bar", cMut)
+    f_c(1, 5, "perp " + f_m(perpWin), cPerp)
+    f_c(2, 5, "spot " + f_m(spotWin), cSpot)
     f_c(3, 5, driver + " · " + str.tostring(nVen) + "/5 tőzsde", cTxt)
     f_c(0, 6, "OI " + str.tostring(lbN) + " bar", cMut)
     f_c(1, 6, na(oiWin) or na(oi[lbN]) or oi[lbN] == 0 ? "n/a" : f_num(oiWin / oi[lbN] * 100) + "%", cTxt)
@@ -307,11 +318,14 @@ if barstate.islast
     f_c(1, 8, na(ud) ? "n/a" : str.tostring(ud, "0.00") + "%", cTxt)
     f_c(2, 8, na(ud) or na(ud1) ? "" : f_num((ud - ud1) * 100) + " bp ma", cTxt)
     f_c(3, 8, na(ud) or na(ud1) ? "" : ud > ud1 ? "risk-off (pénz menekül)" : "risk-on", cMut)
-    f_c(0, 9, "Becslés: CVD tick-szabállyal (" + ltf + " perces belső gyertyák). Orderbook, footprint, valós likvidáció Pine-ban nem érhető el.", cMut)
+    f_c(0, 9, "CVD tőzsdénként", cMut)
+    f_c(1, 9, "perp: " + str.tostring(p1) + " " + f_m(wP1) + " · " + str.tostring(p2) + " " + f_m(wP2) + " · " + str.tostring(p3) + " " + f_m(wP3) + "  |  spot: " + str.tostring(s1) + " " + f_m(wS1) + " · " + str.tostring(s2) + " " + f_m(wS2), cTxt)
+    f_c(0, 10, "Becslés: CVD tick-szabállyal (" + ltf + " perces belső gyertyák). Orderbook, footprint, valós likvidáció Pine-ban nem érhető el.", cMut)
     if not merged
         table.merge_cells(tb, 0, 0, 3, 0)
         table.merge_cells(tb, 2, 6, 3, 6)
-        table.merge_cells(tb, 0, 9, 3, 9)
+        table.merge_cells(tb, 1, 9, 3, 9)
+        table.merge_cells(tb, 0, 10, 3, 10)
         merged := true
 
 // ----------------------------- alerts --------------------------------
