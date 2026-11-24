@@ -27,6 +27,7 @@ vpRows   = input.int(48, "Sorok száma", minval = 10, maxval = 120, group = grpP
 vpVA     = input.float(70.0, "Értékterület %", minval = 50, maxval = 95, group = grpP)
 vpWidth  = input.int(30, "Hisztogram szélessége (bar)", minval = 5, maxval = 200, group = grpP)
 vpShow   = input.bool(true, "Hisztogram mutatása", group = grpP)
+vpMaxBars = input.int(2000, "Profil: legfeljebb ennyi gyertya", minval = 100, maxval = 4999, group = grpP)
 
 grpV = "VWAP-ok"
 showDV = input.bool(true, "Napi VWAP ±1σ", group = grpV)
@@ -41,6 +42,7 @@ showPD = input.bool(true, "Előző nap/hét csúcs-mély", group = grpV)
 grpC = "CVD (5 tőzsde)"
 ltfIn  = input.string("Auto", "Belső idősík", options = ["Auto", "1", "3", "5", "15", "60"], group = grpC)
 cvdRst = input.string("Nap", "CVD nullázás", options = ["Nap", "Hét", "Soha"], group = grpC)
+cvdBars = input.int(1500, "CVD számítás az utolsó N gyertyára", minval = 200, maxval = 20000, tooltip = "Kisebb érték = gyorsabb. Kis idősíkon (15p, 5p) ez akadályozza meg az időtúllépést.", group = grpC)
 p1On = input.bool(true, "", inline = "p1", group = grpC)
 p1   = input.symbol("BINANCE:BTCUSDT.P", "Perp 1", inline = "p1", group = grpC)
 p2On = input.bool(true, "", inline = "p2", group = grpC)
@@ -106,16 +108,16 @@ plot(showPD ? pwl : na, "Előző hét mély", color.new(#c9d1d9, 10), 2, plot.st
 
 // ----------------------------- CVD -----------------------------------
 int tfs = timeframe.in_seconds()
-string ltfAuto = tfs <= 900 ? "1" : tfs <= 3600 ? "5" : tfs <= 14400 ? "15" : "60"
+string ltfAuto = tfs <= 300 ? "1" : tfs <= 3600 ? "5" : tfs <= 14400 ? "15" : "60"
 string ltf = ltfIn == "Auto" ? ltfAuto : ltfIn
 
 // tick-rule delta from lower-timeframe candles (close > open = buy volume),
 // normalised to USD: venues quote volume either in BTC (base) or in USD (quote)
-f_delta(string sym, string tfLow) =>
+f_delta(string sym, string tfLow, bool calc) =>
     string vt = request.security(sym, "1D", syminfo.volumetype, ignore_invalid_symbol = true)
     [c, o, v] = request.security_lower_tf(sym, tfLow, [close, open, volume], ignore_invalid_symbol = true)
     float d = 0.0
-    int n = na(c) or na(o) or na(v) ? 0 : c.size()
+    int n = not calc or na(c) or na(o) or na(v) ? 0 : c.size()
     if n > 0
         for i = 0 to n - 1
             cc = c.get(i)
@@ -125,11 +127,12 @@ f_delta(string sym, string tfLow) =>
             d += cc > oo ? usd : cc < oo ? -usd : 0.0
     n > 0 ? d : na
 
-dp1 = f_delta(p1, ltf)
-dp2 = f_delta(p2, ltf)
-dp3 = f_delta(p3, ltf)
-ds1 = f_delta(s1, ltf)
-ds2 = f_delta(s2, ltf)
+bool calcCvd = bar_index >= last_bar_index - cvdBars
+dp1 = f_delta(p1, ltf, calcCvd)
+dp2 = f_delta(p2, ltf, calcCvd)
+dp3 = f_delta(p3, ltf, calcCvd)
+ds1 = f_delta(s1, ltf, calcCvd)
+ds2 = f_delta(s2, ltf, calcCvd)
 float dPerp = (p1On ? nz(dp1) : 0.0) + (p2On ? nz(dp2) : 0.0) + (p3On ? nz(dp3) : 0.0)
 float dSpot = (s1On ? nz(ds1) : 0.0) + (s2On ? nz(ds2) : 0.0)
 int nVen = (p1On and not na(dp1) ? 1 : 0) + (p2On and not na(dp2) ? 1 : 0) + (p3On and not na(dp3) ? 1 : 0) + (s1On and not na(ds1) ? 1 : 0) + (s2On and not na(ds2) ? 1 : 0)
@@ -206,7 +209,7 @@ if barstate.islast
 
     int startT = vpMode == "Látható tartomány" ? chart.left_visible_bar_time : vpMode == "Mai nap" ? nz(dayStart, time) : vpMode == "Előző nap" ? nz(prevDayStart, time) : 0
     int endT = vpMode == "Látható tartomány" ? chart.right_visible_bar_time : vpMode == "Előző nap" ? nz(dayStart, time) - 1 : time
-    int maxI = math.min(bar_index, 4999)
+    int maxI = math.min(bar_index, vpMaxBars)
     int iFirst = -1
     int iLast = -1
     float hi = na
