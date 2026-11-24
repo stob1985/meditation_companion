@@ -50,6 +50,7 @@ liquidity:
   # time-decay: a swing's projected liquidation weight halves every N bars (positions
   # opened at old pivots are mostly gone). gravity/trap use the decayed weight, not count.
   decay_half_life: 365
+  filter_swept: true     # build the LIVE liquidity view (phantoms removed). Trading levels stay UNFILTERED (validated)
   zone_mult: 0.3         # image: Zones ATRx0.3
   cvd_bars: 30
   # tiered maintenance margin (spot terms): higher leverage liquidates earlier
@@ -80,6 +81,13 @@ trade:
   void_atr: 2.0          # no-trade if no structure within this many ATR
   enable_hedge: true     # in a range/equilibrium, return both long & short legs
   hedge_max_ratio: 6.0   # max net-directional size split between the two legs (e.g. 6:1)
+  reversal_rr_min: 2.0   # sweep-reclaim MARKET entries need R:R >= this to T1 or T2 (else WAIT)
+  crowd_gate:            # contrarian OKX long/short account ratio = best live signal (Oct-Nov 2026)
+    enabled: true
+    ls_long_max: 2.6     # LONG blocked above this. Data (OKX 1H, Oct25-Nov24 2026): L/S>2.6 -> +72h -3.7%, 10% up
+    ls_long_warn: 2.3    # 2.3-2.6: allowed at HALF size (bucket was ~neutral: +24h +0.6%, 55% up)
+    ls_short_min: 1.0    # SHORT blocked while L/S below this (crowd already short)
+    require_oi_rising: false
 
 # ---- dwell time / dwell block (time/volume-at-price) ---------------------
 dwell:
@@ -148,3 +156,16 @@ swing:
   leverage: 5            # wide swing stops -> low leverage by design
   max_hold_bars: 60      # give the monthly move room (backtest cap)
   horizon: 21            # forecast band horizon (trading days ~ 1 month)
+
+# ---- added 2026-11-24: missing links ---------------------------------------
+oimap:                   # OI-based liquidation estimate (OKX hourly OI + taker split)
+  enabled: true
+  lev_mix: {10: 0.30, 20: 0.25, 25: 0.15, 50: 0.20, 100: 0.10}
+  bin_usd: 500
+options:                 # Deribit expiries: max pain, put/call, biggest strikes
+  enabled: true
+  n_expiries: 4
+mining:                  # mempool.space: hashrate, hashprice, shutdown bands, hash ribbon
+  enabled: true
+  eff_jth: [15, 17.5, 20, 25]
+  power_usd_kwh: [0.05, 0.06]

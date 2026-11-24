@@ -55,7 +55,8 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
     # ---- composite ------------------------------------------------------
     L.append(f" COMPOSITE ({sig['active']} active)   "
              f"UP {sig['up']}%  |  DN {sig['dn']}%   "
-             f"Bias: {sig['bias']}   {sig['strength']}   Q:{sig['q']}")
+             f"Bias: {sig['bias']}   {sig['strength']}   Q:{sig['q']}   "
+             f"[NEM validált irány: OOS találati arány ~46%]")
     f = sig["forecast"]
     L.append(f" FORECAST  {H}-day @ {f['conf']}%      "
              f"\u25b2 {f['hi']}     \u25bc {f['lo']}")
@@ -89,6 +90,13 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
     L.append("   ── magnets BELOW (long liq / targets) ──")
     for c in liq["clusters_below"][:6]:
         L.append(f"      {c['price']:>11.1f}   x{c['count']:<2}  {c['tiers']}")
+    if liq.get("live_above") is not None:
+        la = "  ".join(f"{c['price']:,.0f}(x{c['count']})" for c in liq["live_above"][:4]) or "—"
+        lb_ = "  ".join(f"{c['price']:,.0f}(x{c['count']})" for c in liq["live_below"][:4]) or "—"
+        L.append(f"   ── ÉLŐ likviditás (kisöpört nélkül, {liq.get('swept_filtered', 0)} fantom kiszűrve) ──")
+        L.append(f"      fent: {la}")
+        L.append(f"      lent: {lb_}")
+        L.append("   (a fenti magnet-lista S/R-ként validált; az ÉLŐ lista azt mutatja, hol van még vadászható likviditás)")
     L.append("=" * 92)
 
     # ---- dwell blocks ---------------------------------------------------
@@ -113,6 +121,10 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
     if trade and trade.get("mode") in ("levels", "reversal"):
         if trade["side"] == "WAIT":
             L.append(f" TRADE PLAN (LEVEL ENTRY)   ⏳ WAIT  ·  {trade['reason']}")
+            gp = trade.get("gated_plan")
+            if gp:
+                L.append(f"   (kapu nélkül ez lenne: {gp['side']} {gp.get('entry_type','')} {gp['entry']:,.0f}  "
+                         f"stop {gp['stop']:,.0f}  T1 {gp['t1']:,.0f} (R:R {gp['rr1']})  T2 {gp['t2']:,.0f})")
         else:
             t = trade
             safe = "OK" if t["liq_safe"] else "⚠ UNSAFE"
@@ -275,7 +287,9 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
         if mac:
             ser = "  ".join(f"{k}:{v['corr']}" for k, v in mac["series"].items()
                             if v["corr"] is not None)
-            L.append(f" MACRO  bias {mac['bias']} (score {mac['score']})   corr[{ser}]")
+            fut = mac.get("futures") or {}
+            fs = "  ".join(f"{k} {v['chg24']:+.2f}%/24h" for k, v in fut.items())
+            L.append(f" MACRO  bias {mac['bias']} (score {mac['score']})   30n korreláció[{ser}]   határidős: {fs or 'n/a'}")
             printed = True
         fd = overlays.get("flow_div")
         if fd:
@@ -294,6 +308,17 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
                 parts.append(f"funding {rf['funding']['funding']}")
             L.append(" REAL FLOW (live)  " + "   ".join(parts))
             L.append(f"   real liquidations seen: {rf['n_liqs']} (recent, OKX)")
+            extra = []
+            if rf.get("cb_premium"):
+                cp = rf["cb_premium"]; extra.append(f"Coinbase-prémium {cp['usd']:+.0f}$ ({cp['bp']:+.1f} bp, {cp['note']})")
+            if rf.get("absorption"):
+                ab = rf["absorption"]; extra.append(f"{ab['hours']}h taker {ab['net_musd']:+.0f}M$ (z {ab['z']}), ár {ab['px_chg']:+.2f}% → {ab['state']}")
+            for e_ in extra:
+                L.append(f"   {e_}")
+            bn, bb = rf.get("binance"), rf.get("bybit")
+            L.append("   Binance: " + (f"top trader pozíció L/S {bn['top_pos_ls']} · számla L/S {bn['global_ls']} · OI {bn['oi_usd_bn']}Mrd$ ({bn['oi_chg24']:+.1f}%/24h)"
+                                     if bn else "n/a (felhőből tiltott — helyi gépen fut)")
+                     + "   ·  Bybit: " + (f"L/S {bb['ls']}" if bb else "n/a"))
             printed = True
         se = overlays.get("sessions")
         if se:
@@ -315,6 +340,39 @@ def render(sig: dict, liq: dict, db: dict, cfg: dict,
                     L.append(f"   feltételes: {cells}")
             printed = True
         if printed:
+            L.append("=" * 92)
+        om = overlays.get("oimap")
+        if om:
+            b = om["bands"]
+            L.append(f" OI-ALAPÚ LIKVIDÁCIÓS TÉRKÉP ({om['venue'].upper()}, friss pozíciók)   OI {om['oi_usd']}Mrd$ · követett {om['tracked_usd']}Mrd$")
+            L.append("   sáv       FENT short   LENT long   (M$)")
+            for pct in (2, 5, 10, 20):
+                a_, b_ = b[pct]
+                L.append(f"   ±{pct:<3}%   {a_:>10.1f}   {b_:>9.1f}")
+            L.append("   fent: " + "  ".join(f"{p/1000:.1f}k {v:.0f}M" for p, v in om["top_above"]))
+            L.append("   lent: " + "  ".join(f"{p/1000:.1f}k {v:.0f}M" for p, v in om["top_below"]))
+            sw = om["swept_24h"]
+            L.append(f"   24h alatt kisöpörve (becslés): short {sw[0]:.0f}M$ · long {sw[1]:.0f}M$   [HOL gyorsulhat az ár, nem MERRE megy]")
+            L.append("=" * 92)
+        op = overlays.get("options")
+        if op:
+            L.append(f" OPCIÓK (Deribit {op['ccy']})   összes OI {op['total_oi']:,} {op['ccy']}")
+            for e_ in op["expiries"]:
+                tp = ", ".join(f"{k/1000:.0f}k({v:,})" for k, v in e_["top_puts"])
+                tc = ", ".join(f"{k/1000:.0f}k({v:,})" for k, v in e_["top_calls"])
+                L.append(f"   {e_['expiry']:%Y-%m-%d %H:%M} UTC  OI {e_['oi']:>7,} (~{e_['oi_usd_bn']}Mrd$)  P/C {e_['pc']}  "
+                         f"max pain {e_['max_pain']:,}   put: {tp}   call: {tc}")
+            bg = "  ".join(f"{k/1000:.0f}k{t} {v:,}" for k, t, v in op["battleground"])
+            L.append(f"   csatatér (±10%-on belüli legnagyobb strike-ok): {bg}")
+            L.append("=" * 92)
+        mn = overlays.get("mining")
+        if mn:
+            eta = f"{mn['diff_eta']:%m-%d %H:%M} UTC" if mn.get("diff_eta") is not None else "?"
+            L.append(f" BÁNYÁSZAT   hashrate 7n {mn['hash7']} EH/s (csúcs {mn['peak']} @ {mn['peak_date']})   hashprice ${mn['hashprice']}/PH/nap   "
+                     f"hash ribbon: {'KAPITULÁCIÓ' if mn['ribbon_capitulation'] else 'nincs kapituláció'}")
+            L.append(f"   nehézség: előző {mn['diff_prev']:+.1f}%  ·  következő {mn['diff_next']:+.1f}% ({mn['diff_progress']}%, ~{eta})")
+            cells = "   ".join(f"{e} J/TH: " + " / ".join(f"${p}→{v:,}" for p, v in g.items()) for e, g in mn["grid"].items())
+            L.append(f"   kikapcsolási ár (csak áram): {cells}")
             L.append("=" * 92)
 
     return "\n".join(L)

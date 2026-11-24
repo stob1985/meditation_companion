@@ -25,6 +25,7 @@ lb       = input.int(5, "Swing lookback (pivot)", minval = 2, maxval = 20, group
 histBars = input.int(400, "Történet (HTF bar)", minval = 50, maxval = 2000, group = grpE)
 halfLife = input.float(365.0, "Idő-súly felezési ideje (HTF bar, 0 = nincs)", minval = 0, group = grpE)
 zoneMult = input.float(0.3, "Klaszter-szélesség (ATR x)", minval = 0.05, step = 0.05, group = grpE)
+fltSwept = input.bool(false, "Csak ÉLŐ likviditás (kisöpört szintek elrejtése)", tooltip = "BE: csak azokat a szinteket mutatja, amelyeken az ár a pivot óta nem ment át (vadászható likviditás). KI (alap): minden szint látszik - támasz/ellenállásként ezek a validáltak (a szint-belépő backteszt szűrés nélkül +17,9%, szűréssel -1,4%).", group = grpE)
 
 grpV = "Tőzsdék (a chart szimbóluma mindig benne van)"
 en2 = input.bool(true, "", inline = "v2", group = grpV)
@@ -65,8 +66,10 @@ var int[] TIERS = array.from(10, 25, 50, 100)
 
 var float[] hiP = array.new_float()
 var int[]   hiT = array.new_int()
+var float[] hiX = array.new_float()   // max high since the pivot
 var float[] loP = array.new_float()
 var int[]   loT = array.new_int()
+var float[] loX = array.new_float()   // min low since the pivot
 
 var box[]   gBoxes  = array.new_box()
 var label[] gLabels = array.new_label()
@@ -86,25 +89,28 @@ f_piv(int n) =>
     [ph[1], pl[1], time[n + 1], rg[1]]
 
 // push a pivot once (dedupe by pivot time per venue); returns the new "last time"
-f_add(float p, int t, int lastT, float[] P, int[] T) =>
+f_add(float p, int t, int lastT, float[] P, int[] T, float[] X) =>
     int out = lastT
     if not na(p) and not na(t) and (na(lastT) or t != lastT)
         P.push(p)
         T.push(t)
+        X.push(p)
         out := t
     out
 
-f_prune(float[] P, int[] T, float maxAgeMs) =>
+f_prune(float[] P, int[] T, float[] X, float maxAgeMs) =>
     while T.size() > 0 and (time - T.get(0)) > maxAgeMs
         T.shift()
         P.shift()
+        X.shift()
     while T.size() > 800
         T.shift()
         P.shift()
+        X.shift()
 
 // project liquidation levels. mode 0 = live (above price for highs / below for lows),
 // mode 1 = swept (inside [lo, hi] of the recent window)
-f_levels(float[] P, int[] T, bool isHigh, float px, int mode, float lo, float hi) =>
+f_levels(float[] P, int[] T, float[] X, bool isHigh, float px, int mode, float lo, float hi) =>
     lv = array.new_float()
     ag = array.new_float()
     tr = array.new_int()
@@ -116,7 +122,8 @@ f_levels(float[] P, int[] T, bool isHigh, float px, int mode, float lo, float hi
                 e = P.get(i)
                 for lev in TIERS
                     v = isHigh ? e * (1 + 1.0 / lev - f_mmr(lev)) : e * (1 - 1.0 / lev + f_mmr(lev))
-                    keep = mode == 0 ? (isHigh ? v > px : v < px) : (v >= lo and v <= hi)
+                    bool live = not fltSwept or (isHigh ? v > X.get(i) : v < X.get(i))
+                    keep = mode == 0 ? (isHigh ? v > px and live : v < px and live) : (v >= lo and v <= hi)
                     if keep
                         lv.push(v)
                         ag.push(a)
@@ -260,23 +267,37 @@ var int ll4 = na
 var int lh5 = na
 var int ll5 = na
 
-lh1 := f_add(ph1, pt1, lh1, hiP, hiT)
-ll1 := f_add(pl1, pt1, ll1, loP, loT)
+lh1 := f_add(ph1, pt1, lh1, hiP, hiT, hiX)
+ll1 := f_add(pl1, pt1, ll1, loP, loT, loX)
 if use2
-    lh2 := f_add(ph2, pt2, lh2, hiP, hiT)
-    ll2 := f_add(pl2, pt2, ll2, loP, loT)
+    lh2 := f_add(ph2, pt2, lh2, hiP, hiT, hiX)
+    ll2 := f_add(pl2, pt2, ll2, loP, loT, loX)
 if use3
-    lh3 := f_add(ph3, pt3, lh3, hiP, hiT)
-    ll3 := f_add(pl3, pt3, ll3, loP, loT)
+    lh3 := f_add(ph3, pt3, lh3, hiP, hiT, hiX)
+    ll3 := f_add(pl3, pt3, ll3, loP, loT, loX)
 if use4
-    lh4 := f_add(ph4, pt4, lh4, hiP, hiT)
-    ll4 := f_add(pl4, pt4, ll4, loP, loT)
+    lh4 := f_add(ph4, pt4, lh4, hiP, hiT, hiX)
+    ll4 := f_add(pl4, pt4, ll4, loP, loT, loX)
 if use5
-    lh5 := f_add(ph5, pt5, lh5, hiP, hiT)
-    ll5 := f_add(pl5, pt5, ll5, loP, loT)
+    lh5 := f_add(ph5, pt5, lh5, hiP, hiT, hiX)
+    ll5 := f_add(pl5, pt5, ll5, loP, loT, loX)
 
-f_prune(hiP, hiT, histBars * tfMs)
-f_prune(loP, loT, histBars * tfMs)
+f_prune(hiP, hiT, hiX, histBars * tfMs)
+f_prune(loP, loT, loX, histBars * tfMs)
+
+// running extremes since each pivot, updated once per completed HTF bar
+[hh1, ll1x, ht1] = request.security(syminfo.tickerid, tf, [high[1], low[1], time[1]], lookahead = barmerge.lookahead_on)
+var int lastHt = na
+if not na(ht1) and (na(lastHt) or ht1 != lastHt)
+    lastHt := ht1
+    if hiX.size() > 0
+        for i = 0 to hiX.size() - 1
+            if hiT.get(i) < ht1
+                hiX.set(i, math.max(hiX.get(i), hh1))
+    if loX.size() > 0
+        for i = 0 to loX.size() - 1
+            if loT.get(i) < ht1
+                loX.set(i, math.min(loX.get(i), ll1x))
 
 oiNow  = request.security(oiSym, "60", close, ignore_invalid_symbol = true)
 oiPrev = request.security(oiSym, "60", close[24], ignore_invalid_symbol = true)
@@ -307,8 +328,8 @@ if barstate.islast
     if not na(atr) and atr > 0
         float width = atr * zoneMult
 
-        [aLv, aAg, aTr] = f_levels(hiP, hiT, true, px, 0, 0.0, 0.0)
-        [bLv, bAg, bTr] = f_levels(loP, loT, false, px, 0, 0.0, 0.0)
+        [aLv, aAg, aTr] = f_levels(hiP, hiT, hiX, true, px, 0, 0.0, 0.0)
+        [bLv, bAg, bTr] = f_levels(loP, loT, loX, false, px, 0, 0.0, 0.0)
         [aP, aN, aW, aA, aM] = f_cluster(aLv, aAg, aTr, width, halfLife)
         [bP, bN, bW, bA, bM] = f_cluster(bLv, bAg, bTr, width, halfLife)
 
@@ -323,8 +344,8 @@ if barstate.islast
                 break
             swHi := math.max(swHi, high[i])
             swLo := math.min(swLo, low[i])
-        [sALv, sAAg, sATr] = f_levels(hiP, hiT, true, px, 1, swLo, swHi)
-        [sBLv, sBAg, sBTr] = f_levels(loP, loT, false, px, 1, swLo, swHi)
+        [sALv, sAAg, sATr] = f_levels(hiP, hiT, hiX, true, px, 1, swLo, swHi)
+        [sBLv, sBAg, sBTr] = f_levels(loP, loT, loX, false, px, 1, swLo, swHi)
         [sAP, sAN, sAW, sAA, sAM] = f_cluster(sALv, sAAg, sATr, width, halfLife)
         [sBP, sBN, sBW, sBA, sBM] = f_cluster(sBLv, sBAg, sBTr, width, halfLife)
 

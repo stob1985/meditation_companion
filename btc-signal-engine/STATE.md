@@ -1,6 +1,6 @@
 # ÁLLAPOT, TANULSÁGOK, NYITOTT TEENDŐK (élő dokumentum)
 
-> Utolsó frissítés: **2026-11-24 11:40 (magyar idő)**. Minden új session ELŐSZÖR ezt olvassa,
+> Utolsó frissítés: **2026-11-24 délután (magyar idő)** — a „hiányzó láncszemek” beépítése után. Minden új session ELŐSZÖR ezt olvassa,
 > utána a HANDOVER.md-t. Minden munkamenet végén frissíteni + commitolni.
 > A felhasználó kérése: **csak adat alapján** dolgozzunk, ne az ő véleménye alapján.
 
@@ -8,7 +8,7 @@
 
 | Eszköz / jel | Eredmény | Következmény |
 |---|---|---|
-| **Tömeg L/S (OKX számlaarány), kontrár** | Okt–nov során a **legmegbízhatóbb** jel. L/S 2,8–3,2 + emelkedő OI → −12% (nov. 5–14); L/S 2,6–2,8 esésbe vásárolva → nov. 23–24 lecsorgás | **Kemény kapu:** long csak ha L/S ≤ 2,3 (vagy likvidációs hullám + visszavétel) |
+| **Tömeg L/S (OKX számlaarány), kontrár** | OKX 1H, okt. 25–nov. 24 (720 óra, átfedő): **L/S > 2,6 → +72h −3,7%, 10% emelkedés**; 2,3–2,6 → semleges (+24h +0,6%, 55%); 2,0–2,3 → semleges. A 1,5–2,0 sáv is rossz volt (1 epizód). Félidők ellentmondanak, 1 hónap minta. | **CROWD GATE beépítve:** LONG tiltva L/S > 2,6; 2,3–2,6 között FÉL méret |
 | Kompozit irány (engine/signal.py) | OOS irány-pontosság **45,7%**, PF 1,02 | NEM irányjelző; csak kontextus |
 | Szint-belépő + részleges TP | +27% → **+12,1%** (36 trade, 36% nyerő) | Szerény, fogyó él; az R:R hozza |
 | SWING réteg | −5,2%, 1/6 nyerő (2026) | jelenleg nem működik |
@@ -21,7 +21,13 @@
 | Cipher B pénzáramlás („follow the money”) | egyik állapot sem tér el az alaprátától | csak kontextus |
 | RSI ≤ 18 (napi) | 3/3 rövid távú visszapattanó (+2…+11% 5–10 napon) | kevés minta |
 | Medve-regime, ár 5–12%-kal a 60n mély fölött | új 60n mély 10n: 16%, 20n: 23%; +5% előbb, mint −5%: 77% (~9 epizód) | mean-reversion hajlam |
-| Elnyelés (negatív CVD + stagnáló ár) | nov. 23 délelőtt → +5% kilövés | **bikás**, nem medvés (rosszul olvastam) |
+| Elnyelés (negatív CVD + stagnáló ár) | nov. 23 délelőtt → +5% kilövés (1 eset) | **bikás**; detektor beépítve (realflow.absorption, OF-Suite) — nem validált |
+| **Kisöpört-szűrő a kereskedési szintekre** | szint-belépő: szűrés nélkül **+17,9% (34 trade, 41%)**, szűrve **−1,4% (6 trade, 0%)** | A fantom szintek S/R-ként MŰKÖDNEK → kereskedés: MINDEN szint; ÉLŐ lista csak a likviditás-térképre |
+| Coinbase-prémium | 2 hónap, szinte mindig negatív; < −10 bp → +72h −2,15% (25%) vs −10…−3 bp → −0,41% (56%) | gyenge támogatás; pozitív fordulást nem lehetett tesztelni |
+| AVWAP a 60 napos mélytől | fölötte +0,54% / 50%, alatta −0,47% / 49% (10 nap); „épp alá esett” → +0,77% / 58% | **NINCS él** — nov. 24-én tévesen kezeltem medvés jelként |
+| Cipher B divergencia | napi n=2, 4H n=3–4 | eldönthetetlen (kevés minta) |
+| Kompozit (újrafuttatva) | OOS 47,3%, PF 1,15, +41% nettó, max DD −55% | továbbra sem irányjelző |
+| SWING (újrafuttatva) | −7,8%, 1/7 nyerő | nem működik |
 
 ## 2. Szabályok (a hibákból)
 
@@ -31,7 +37,8 @@
 4. **Részzárás a dokumentált ellenállásoknál**, stop break-evenre az első célnál.
 5. **Egyszerre egy pozíció** — ellentétes jel nyitott pozíció mellett = figyelmeztetés, nem fordulás.
 6. **Napi záró:** a motor OKX 16:00 UTC (17:00 HU), a TradingView 00:00 UTC (01:00 HU) — mindig mondd meg, melyikről van szó.
-7. **Proxy-térkép kisöpört szintjei fantomok** — a Pine LiqMap és a liquidity.py még nem szűri (lásd TODO).
+7. **Kétféle szint-térkép:** kereskedéshez MINDEN szint (validált S/R); a „hol van vadászható likviditás” kérdéshez az ÉLŐ lista (kisöpört nélkül).
+8. **Market-reversal csak R:R ≥ 2-vel** (`trade.reversal_rr_min`).
 
 ## 3. Trade-napló (felhasználó)
 
@@ -65,18 +72,24 @@ Ha 4H záró 56 400 alatt: lesöprés-long az éves mélynél (visszavétel 55 1
 | nov. 30 (hétfő) | havi gyertya zárása (november a legrosszabb hónap az adatsorban, −26%) | |
 | dec. 25 (pén.) | negyedéves lejárat: ~163k BTC, max pain 72k, nagy put 60k (6 880) | |
 
-## 6. Nyitott teendők (prioritás szerint)
+## 6. Teendők állapota (2026-11-24)
 
-1. **L/S-kapu beépítése** a trade-logikába (long tiltva, ha L/S > 2,3 és OI nő) + visszateszt.
-2. **Kisöpört szintek szűrése** a `liquidity.py`-ba és a Pine `liq_map.pine`-ba (szintenként, a pivot óta).
-3. **OI-alapú likvidációs modul** (`engine/oimap.py`) — eddig csak ad-hoc szkriptben fut.
-4. **Reversal-mód R:R-szűrő** (nov. 2 és 23: R:R 0,64–0,78-as tervet adott ki).
-5. **Elnyelés-detektor** az OF-Suite értelmezésébe (negatív CVD + stagnáló ár = bikás).
-6. **Opciós modul** (Deribit: max pain, nagy strike-ok lejáratonként) — ma derült ki, hogy kimaradt.
-7. **Bányászati modul** (hashrate, hashprice, kikapcsolási sávok, hash ribbon).
-8. **Makró-bemenet** (Nasdaq/ES): a nov. 23-i +7%-os NDX hajtotta a mozgást; a Stooq blokkolt.
-9. **ETF-áramlás** forrás (farside blokkolt) — a 1,79 Mrd $ kiáramlás fontos volt.
-10. **Binance/Bybit adat** csak a felhasználó gépéről érhető el (felhőből 451/403) — Remote Control.
-11. Kompozit megjelölése „nem validált irány”-ként a dashboardon.
-12. Teljes újravalidálás (walk-forward) — a stratégiák romlottak.
-13. Coinbase-prémium és Anchored VWAP visszatesztje; Cipher B divergencia-teszt.
+**KÉSZ:**
+- ✅ CROWD GATE (`trade.crowd_gate`, config `trade.crowd_gate`) — adat alapján hangolva (2,6 / 2,3)
+- ✅ ÉLŐ likviditás-nézet (`liquidity.build` → `live_above/live_below`) + Pine LiqMap kapcsoló (alap: KI, mert a szűretlen a validált S/R)
+- ✅ OI-alapú likvidációs modul: `engine/oimap.py` (dashboard: OI-ALAPÚ LIKVIDÁCIÓS TÉRKÉP)
+- ✅ Reversal R:R-alsó határ (`trade.reversal_rr_min: 2.0`)
+- ✅ Elnyelés-detektor: `realflow.absorption` + OF-Suite „Elnyelés (z)” sor és riasztás
+- ✅ Opciós modul: `engine/options.py` (Deribit: lejáratok, max pain, P/C, csatatér-strike-ok)
+- ✅ Bányászati modul: `engine/mining.py` (hashrate, hashprice, nehézség, kikapcsolási árak, hash ribbon)
+- ✅ Makró: `macro.py` Yahoo-forrással (Stooq tartalék) + élő NQ/ES határidők
+- ✅ Coinbase-prémium: `realflow.coinbase_premium`
+- ✅ Binance (top trader/számla L/S, OI) és Bybit L/S: `realflow.binance_crowd/bybit_crowd` — **csak helyi gépen** (felhőből 451/403)
+- ✅ Kompozit „NEM validált irány” jelölés a dashboardon
+- ✅ Újravalidálás: L/S, Coinbase-prémium, AVWAP, Cipher-divergencia, szint-belépő, swing, kompozit (lásd 1. pont)
+
+**MÉG NYITOTT:**
+1. **ETF-áramlás:** farside Cloudflare mögött (403) — felhőből nem érhető el; helyi gépen az `etfflow.py` működhet.
+2. **Binance/Bybit adat** a te gépedről (Remote Control) — a kód kész, csak a futtatási hely kell.
+3. A CROWD GATE hosszabb távú validálása (OKX csak ~30 nap 1H L/S-t ad; a napi adat 180 napos).
+4. trap_watch backteszt · walk-forward súly-optimalizálás · SWING réteg újragondolása.

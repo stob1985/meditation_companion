@@ -245,6 +245,7 @@ def plan_levels(sig: dict, liq: dict, dwell: dict, cfg: dict) -> dict:
     mmr = _mmr(lev, cfg)
     price = float(sig["price"]); atr = float(liq["atr"]); bias = sig["bias"]
     conv = sig["up"] if bias == "UP" else sig["dn"] if bias == "DOWN" else 0.0
+    rev_min = float(tc.get("reversal_rr_min", 2.0))   # market-entry reversals need a real payoff
 
     # sweep-reclaim reversal takes priority - this is the trader's "buy the
     # liquidity sweep" setup that a pure trend model misses.
@@ -256,6 +257,10 @@ def plan_levels(sig: dict, liq: dict, dwell: dict, cfg: dict) -> dict:
         t1 = res[0] if res else round(price + 2 * atr, 1)
         t2 = res[1] if len(res) > 1 else t1
         risk = abs(price - stop) or 1.0
+        if abs(t1 - price) / risk < rev_min and abs(t2 - price) / risk < rev_min:
+            return dict(side="WAIT", mode="levels", bias="REVERSAL-UP", conv=round(conv, 1),
+                        reason=f"sweep-reclaim {swept:,.0f}, de R:R {abs(t1 - price) / risk:.2f}/"
+                               f"{abs(t2 - price) / risk:.2f} < {rev_min} — nem érdemes piacon venni")
         return dict(side="LONG", mode="reversal", bias="REVERSAL-UP", conv=round(conv, 1),
                     strength="sweep-reclaim", entry=round(price, 1), entry_type="MARKET (reclaim)",
                     pullback_atr=0.0, stop=stop, risk=round(risk, 1),
@@ -272,6 +277,10 @@ def plan_levels(sig: dict, liq: dict, dwell: dict, cfg: dict) -> dict:
         t1 = sup[0] if sup else round(price - 2 * atr, 1)
         t2 = sup[1] if len(sup) > 1 else t1
         risk = abs(stop - price) or 1.0
+        if abs(price - t1) / risk < rev_min and abs(price - t2) / risk < rev_min:
+            return dict(side="WAIT", mode="levels", bias="REVERSAL-DN", conv=round(conv, 1),
+                        reason=f"sweep-reject {swept:,.0f}, de R:R {abs(price - t1) / risk:.2f}/"
+                               f"{abs(price - t2) / risk:.2f} < {rev_min} — nem érdemes piacon eladni")
         return dict(side="SHORT", mode="reversal", bias="REVERSAL-DN", conv=round(conv, 1),
                     strength="sweep-reject", entry=round(price, 1), entry_type="MARKET (reject)",
                     pullback_atr=0.0, stop=stop, risk=round(risk, 1),
@@ -322,6 +331,38 @@ def plan_levels(sig: dict, liq: dict, dwell: dict, cfg: dict) -> dict:
                 bet_usd=bet, leverage=lev, notional=round(notional, 1), qty=round(qty, 6),
                 liq_price=liq_price, liq_safe=liq_safe,
                 plan_note="enter LIMIT at level; take 50% at T1 + stop->BE; runner to T2")
+
+
+def crowd_gate(trade: dict, rf: dict | None, cfg: dict) -> dict:
+    """CROWD GATE - the most reliable live signal of Oct-Nov 2026 was the OKX
+    account long/short ratio read CONTRARIAN. Longs bought into a crowded-long
+    tape (L/S 2.6-3.2) repeatedly got swept (Nov 5-14, Nov 24). So:
+      LONG  is blocked while L/S >  ls_long_max  (default 2.3)
+      SHORT is blocked while L/S <  ls_short_min (default 1.0, crowd already short)
+    Optional: require_oi_rising - only block when OI is also rising (leverage
+    still being added). The original plan is kept under 'gated_plan'."""
+    g = cfg.get("trade", {}).get("crowd_gate", {})
+    if not g.get("enabled", True) or not trade or not rf or not rf.get("ls_ratio"):
+        return trade
+    if trade.get("side") not in ("LONG", "SHORT"):
+        return trade
+    r = float(rf["ls_ratio"]["ratio"])
+    oi_up = (rf.get("oi") or {}).get("trend") == "rising"
+    if g.get("require_oi_rising", False) and not oi_up:
+        return trade
+    hi, lo = float(g.get("ls_long_max", 2.6)), float(g.get("ls_short_min", 1.0))
+    warn = float(g.get("ls_long_warn", 2.3))
+    if trade["side"] == "LONG" and warn < r <= hi:
+        return dict(trade, crowd_ok=True, crowd_ls=r, size_factor=0.5,
+                    plan_note=trade.get("plan_note", "") + f"  ⚠ L/S {r} > {warn}: FÉL méret")
+    if trade["side"] == "LONG" and r > hi:
+        why = f"CROWD GATE: L/S {r} > {hi} (tömeg túl long) — LONG tiltva, várd a kiürülést"
+    elif trade["side"] == "SHORT" and r < lo:
+        why = f"CROWD GATE: L/S {r} < {lo} (tömeg már short) — SHORT tiltva"
+    else:
+        return dict(trade, crowd_ok=True, crowd_ls=r)
+    return dict(side="WAIT", mode="levels", bias=trade.get("bias"), conv=trade.get("conv"),
+                reason=why, gated_plan=trade, crowd_ls=r)
 
 
 def plan(sig: dict, liq: dict, dwell: dict, cfg: dict) -> dict:

@@ -118,6 +118,79 @@ def hyperliquid_funding(coin="BTC") -> dict | None:
         return None
 
 
+def coinbase_premium(ccy="BTC") -> dict | None:
+    """Coinbase (US spot, USD) minus OKX (USDT). Positive = US buyers paying up
+    (institutional / ETF demand); negative = US selling. Context, not validated."""
+    try:
+        cb = float(_get(f"https://api.exchange.coinbase.com/products/{ccy}-USD/ticker")["price"])
+        ok = float(_get("https://www.okx.com/api/v5/market/ticker", params=dict(instId=f"{ccy}-USDT"))["data"][0]["last"])
+        prem = cb - ok
+        return dict(usd=round(prem, 1), bp=round(prem / ok * 1e4, 1),
+                    note="US-vevők erősek" if prem > 0 else "US-eladók erősek")
+    except Exception:                                  # noqa: BLE001
+        return None
+
+
+def absorption(ccy="BTC", hours=4) -> dict | None:
+    """ABSORPTION / DISTRIBUTION from OKX hourly taker volume vs price.
+    Heavy net aggressive SELLING while price holds = passive buyers absorbing
+    (bullish - Nov 23 2026 morning preceded a +5% squeeze). Heavy net BUYING
+    while price does not rise = distribution (bearish). z = window net taker
+    flow vs its 72h hourly std."""
+    try:
+        tk = _get("https://www.okx.com/api/v5/rubik/stat/taker-volume",
+                  params=dict(ccy=ccy, instType="CONTRACTS", period="1H"))["data"]
+        net = np.array([float(b) - float(s_) for _, s_, b in tk][::-1])          # oldest -> newest
+        if len(net) < 24:
+            return None
+        cd = _get("https://www.okx.com/api/v5/market/candles", params=dict(instId=f"{ccy}-USDT", bar="1H", limit=str(hours + 1)))["data"]
+        closes = [float(x[4]) for x in cd][::-1]
+        chg = (closes[-1] / closes[0] - 1) * 100
+        z = float(net[-hours:].sum() / (net.std() * np.sqrt(hours) + 1e-9))
+        if z <= -1.5 and chg >= -0.3:
+            state = "ELNYELÉS (eladnak, de az ár tart) — bikás"
+        elif z >= 1.5 and chg <= 0.3:
+            state = "ELOSZTÁS (vesznek, de az ár nem megy) — medvés"
+        elif z <= -1.5:
+            state = "valódi eladói nyomás (az ár is esik)"
+        elif z >= 1.5:
+            state = "valódi vevői nyomás (az ár is emelkedik)"
+        else:
+            state = "semleges"
+        return dict(hours=hours, net_musd=round(float(net[-hours:].sum()) / 1e6, 1), z=round(z, 2),
+                    px_chg=round(chg, 2), state=state)
+    except Exception:                                  # noqa: BLE001
+        return None
+
+
+def binance_crowd(symbol="BTCUSDT") -> dict | None:
+    """Binance futures positioning (top-trader position L/S, global account L/S,
+    OI 24h). Geo-blocked (HTTP 451) from many clouds - works on a local machine."""
+    try:
+        base = "https://fapi.binance.com/futures/data/"
+        top = _get(base + "topLongShortPositionRatio", params=dict(symbol=symbol, period="1h", limit=2))
+        glob = _get(base + "globalLongShortAccountRatio", params=dict(symbol=symbol, period="1h", limit=2))
+        oih = _get(base + "openInterestHist", params=dict(symbol=symbol, period="1h", limit=25))
+        o0, o1 = float(oih[0]["sumOpenInterestValue"]), float(oih[-1]["sumOpenInterestValue"])
+        return dict(top_pos_ls=round(float(top[-1]["longShortRatio"]), 2),
+                    global_ls=round(float(glob[-1]["longShortRatio"]), 2),
+                    oi_usd_bn=round(o1 / 1e9, 2), oi_chg24=round((o1 / o0 - 1) * 100, 1))
+    except Exception:                                  # noqa: BLE001
+        return None
+
+
+def bybit_crowd(symbol="BTCUSDT") -> dict | None:
+    """Bybit account L/S (buy ratio). Geo-blocked (403) from many clouds."""
+    try:
+        j = _get("https://api.bybit.com/v5/market/account-ratio",
+                 params=dict(category="linear", symbol=symbol, period="1h", limit=1))
+        r = j["result"]["list"][0]
+        b, s_ = float(r["buyRatio"]), float(r["sellRatio"])
+        return dict(ls=round(b / s_, 2) if s_ else None)
+    except Exception:                                  # noqa: BLE001
+        return None
+
+
 def build(cfg: dict, price: float, atr: float) -> dict | None:
     """Assemble the live real-flow picture. price/atr from the main feed."""
     if not cfg.get("realflow", {}).get("enabled", True):
@@ -137,6 +210,9 @@ def build(cfg: dict, price: float, atr: float) -> dict | None:
              x.get("bias") for x in (lsr, fund) if x]
     up = sum(1 for v in votes if v == "UP"); dn = sum(1 for v in votes if v == "DOWN")
     flow_bias = "UP" if up > dn else "DOWN" if dn > up else "NEUTRAL"
+    sym = cfg.get("data", {}).get("symbol", f"{ccy}USDT")
     return dict(n_liqs=len(liqs) if liqs else 0,
                 liq_above=above[:5], liq_below=below[:5],
-                oi=oi, ls_ratio=lsr, funding=fund, flow_bias=flow_bias)
+                oi=oi, ls_ratio=lsr, funding=fund, flow_bias=flow_bias,
+                cb_premium=coinbase_premium(ccy), absorption=absorption(ccy),
+                binance=binance_crowd(sym), bybit=bybit_crowd(sym))

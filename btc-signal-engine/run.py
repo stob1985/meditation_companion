@@ -13,7 +13,8 @@ from engine import (data, events as ev, vdb, signal, liquidity, dashboard,
                     backtest, dwell as dwellmod, trade as trademod,
                     flow as flowmod, macro as macromod, sessions as sessmod,
                     realflow as rfmod, position, volregime as volmod,
-                    etfflow as etfmod, swing as swingmod)
+                    etfflow as etfmod, swing as swingmod, oimap as oimapmod,
+                    options as optmod, mining as minemod)
 
 
 def load_cfg(path="config.yaml"):
@@ -61,6 +62,11 @@ def main():
         if cfg.get("liquidity", {}).get("multi_venue", True):
             overlays["multi_liq"] = liquidity.build_multi(cfg)
         overlays["realflow"] = rfmod.build(cfg, liq["price"], liq["atr"])
+        overlays["oimap"] = oimapmod.build(cfg)
+        overlays["options"] = optmod.build(cfg, liq["price"])
+        overlays["mining"] = minemod.build(cfg, liq["price"])
+        # CROWD GATE: block entries against a crowded tape (validated contrarian L/S)
+        trade = trademod.crowd_gate(trade, overlays["realflow"], cfg)
     overlays["macro"] = macromod.build(df, cfg)
     # sessions: needs intraday - pull 1H (live) so Asia/London/NY stats always work
     if cfg["data"]["source"] == "live" and cfg.get("sessions", {}).get("enabled", True):

@@ -167,6 +167,11 @@ float spotWin = math.sum(dSpot, lbN)
 float oiWin = oi - oi[lbN]
 string quad = na(oiWin) ? "OI n/a" : cvdWin >= 0 and oiWin >= 0 ? "ÚJ LONGOK nyílnak (vétel + OI nő)" : cvdWin < 0 and oiWin >= 0 ? "ÚJ SHORTOK nyílnak (eladás + OI nő)" : cvdWin >= 0 and oiWin < 0 ? "SHORT-FEDEZÉS / squeeze (vétel + OI csökken)" : "LONG-KISZÁLLÁS / likvidálás (eladás + OI csökken)"
 string driver = math.abs(spotWin) > math.abs(perpWin) ? "SPOT vezeti" : "PERP vezeti"
+// absorption / distribution: heavy net aggressive flow that price does NOT follow
+float sdAll = ta.stdev(dAll, 100)
+float zWin = sdAll > 0 ? cvdWin / (sdAll * math.sqrt(lbN)) : na
+float pxChg = (close / close[lbN] - 1) * 100
+string absorb = na(zWin) ? "n/a" : zWin <= -1.5 and pxChg >= -0.3 ? "ELNYELÉS: eladnak, de az ár tart (bikás)" : zWin >= 1.5 and pxChg <= 0.3 ? "ELOSZTÁS: vesznek, de az ár nem megy (medvés)" : zWin <= -1.5 ? "valódi eladói nyomás (az ár is esik)" : zWin >= 1.5 ? "valódi vevői nyomás (az ár is nő)" : "semleges"
 float wP1 = math.sum(nz(dp1), lbN)
 float wP2 = math.sum(nz(dp2), lbN)
 float wP3 = math.sum(nz(dp3), lbN)
@@ -320,16 +325,21 @@ if barstate.islast
     f_c(3, 8, na(ud) or na(ud1) ? "" : ud > ud1 ? "risk-off (pénz menekül)" : "risk-on", cMut)
     f_c(0, 9, "CVD tőzsdénként", cMut)
     f_c(1, 9, "perp: " + str.tostring(p1) + " " + f_m(wP1) + " · " + str.tostring(p2) + " " + f_m(wP2) + " · " + str.tostring(p3) + " " + f_m(wP3) + "  |  spot: " + str.tostring(s1) + " " + f_m(wS1) + " · " + str.tostring(s2) + " " + f_m(wS2), cTxt)
-    f_c(0, 10, "Becslés: CVD tick-szabállyal (" + ltf + " perces belső gyertyák). Orderbook, footprint, valós likvidáció Pine-ban nem érhető el.", cMut)
+    f_c(0, 10, "Elnyelés (z)", cMut)
+    f_c(1, 10, na(zWin) ? "n/a" : str.tostring(zWin, "0.00") + " · ár " + f_num(pxChg) + "%", cTxt)
+    f_c(2, 10, absorb, str.startswith(absorb, "ELNYEL") ? cSpot : str.startswith(absorb, "ELOSZT") ? color.new(#ff7b72, 0) : cMut)
+    f_c(0, 11, "Becslés: CVD tick-szabállyal (" + ltf + " perces belső gyertyák). Orderbook, footprint, valós likvidáció Pine-ban nem érhető el.", cMut)
     if not merged
         table.merge_cells(tb, 0, 0, 3, 0)
         table.merge_cells(tb, 2, 6, 3, 6)
         table.merge_cells(tb, 1, 9, 3, 9)
-        table.merge_cells(tb, 0, 10, 3, 10)
+        table.merge_cells(tb, 2, 10, 3, 10)
+        table.merge_cells(tb, 0, 11, 3, 11)
         merged := true
 
 // ----------------------------- alerts --------------------------------
 var string lastQuad = ""
+var string lastAbs = ""
 bool crossPOC = not na(vPOC) and ta.cross(close, vPOC)
 if barstate.islast and barstate.isconfirmed
     if crossPOC
@@ -341,5 +351,8 @@ if barstate.islast and barstate.isconfirmed
     if quad != lastQuad and lastQuad != ""
         alert(syminfo.ticker + " áramlás-váltás: " + quad, alert.freq_once_per_bar_close)
     lastQuad := quad
+    if absorb != lastAbs and (str.startswith(absorb, "ELNYEL") or str.startswith(absorb, "ELOSZT"))
+        alert(syminfo.ticker + " " + absorb, alert.freq_once_per_bar_close)
+    lastAbs := absorb
     if not na(prem) and not na(prem[1]) and math.sign(prem) != math.sign(prem[1])
         alert(syminfo.ticker + " Coinbase-prémium előjelet váltott: " + f_num(prem) + " $", alert.freq_once_per_bar_close)

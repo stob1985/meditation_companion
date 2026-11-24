@@ -88,23 +88,43 @@ def build(df: pd.DataFrame, cfg: dict) -> dict:
     half_life = cfg["liquidity"].get("decay_half_life")
     pos = {ts: i for i, ts in enumerate(d.index)}
     last = len(d) - 1
-    levels = []
+    # LIVE view: a projected level that price has already traded through since
+    # its pivot is a PHANTOM as liquidity (positions liquidated/closed) - but the
+    # unfiltered levels still work as SUPPORT/RESISTANCE: the level-entry backtest
+    # went +17.9% (34 trades) unfiltered vs -1.4% (6 trades) filtered (Nov 2026).
+    # So trading uses ALL levels; 'live_above/below' is the hunt-able liquidity map.
+    # suffix extremes: max high / min low of the bars AFTER bar i.
+    filt = bool(cfg["liquidity"].get("filter_swept", True))
+    hv, lv_ = d["high"].values, d["low"].values
+    suf_hi = np.append(np.maximum.accumulate(hv[::-1])[::-1][1:], -np.inf)
+    suf_lo = np.append(np.minimum.accumulate(lv_[::-1])[::-1][1:], np.inf)
+    swept_n = 0
+    levels, live = [], []
     # shorts entered at swing HIGHS -> liquidate ABOVE (tiered maintenance margin)
     for ts, entry in sh.items():
-        age = last - pos[ts]
+        i = pos[ts]; age = last - i
         for lev in TIERS:
             lv = entry * (1 + 1 / lev - _mmr(lev))
             if lv > price:
                 levels.append((lv, lev, "short", age))
+                if suf_hi[i] >= lv:
+                    swept_n += 1
+                else:
+                    live.append((lv, lev, "short", age))
     # longs entered at swing LOWS -> liquidate BELOW
     for ts, entry in sl.items():
-        age = last - pos[ts]
+        i = pos[ts]; age = last - i
         for lev in TIERS:
             lv = entry * (1 - 1 / lev + _mmr(lev))
             if lv < price:
                 levels.append((lv, lev, "long", age))
+                if suf_lo[i] <= lv:
+                    swept_n += 1
+                else:
+                    live.append((lv, lev, "long", age))
 
     clusters = _cluster(levels, width, half_life)
+    live_cl = _cluster(live, width, half_life) if filt else []
 
     # tap count: how many bars probed within `width` of each cluster price.
     # heavily-tapped levels are "worn" (power-of-three: they tend to break),
@@ -161,7 +181,9 @@ def build(df: pd.DataFrame, cfg: dict) -> dict:
         bounces += int(rej.sum())
     bounce_rate = round(bounces / touches * 100, 1) if touches else None
 
-    return dict(price=_r(price), atr=_r(a),
+    return dict(price=_r(price), atr=_r(a), swept_filtered=swept_n,
+                live_above=sorted([c for c in live_cl if c['price'] > price], key=lambda c: c['price']),
+                live_below=sorted([c for c in live_cl if c['price'] < price], key=lambda c: -c['price']),
                 tiers_count={t: sum(1 for c in clusters if t in c["tiers"]) for t in TIERS},
                 active=len(clusters), long_short=(n_long, n_short),
                 nearest_atr=nearest_atr, bounce_rate=bounce_rate, bounce_events=touches,

@@ -48,16 +48,19 @@ Interval: `1,5,15,60,120,240,D`. Bármelyik coin: `data._fetch_okx("ETH-USDT","1
 | `dwell.py` | dwell blokkok (idő/volumen-az-áron) + IRÁNY-szabály (fölött→UP, alatt→DOWN, közép→DOWN) | `build(df,cfg)` |
 | `liquidity.py` | proxy likvidációs klaszterek (10/25/50/100x, tiered MMR, tap-count, bounce), **multi-venue konfluencia**, **GRAVITY** | `build`, `build_multi`, `gravity` |
 | `flow.py` | CVD/money-flow + spot-vs-perp divergencia | `cvd_bias`, `okx_spot_perp_divergence` |
-| `realflow.py` | ÉLŐ valós adat: OKX likvidációk + OI + **long/short arány** + funding (per-coin) | `build(cfg,price,atr)` |
-| `macro.py` | BTC vs SPX/NDX/DXY/arany/olaj korreláció (best-effort, Stooq) | `build(df,cfg)` |
+| `realflow.py` | ÉLŐ valós adat: OKX likvidációk + OI + **long/short arány** + funding + **Coinbase-prémium** + **elnyelés-detektor** + Binance/Bybit (csak helyi gépen) | `build(cfg,price,atr)` |
+| `macro.py` | BTC vs SPX/NDX/DXY/arany/olaj korreláció + élő NQ/ES határidők (**Yahoo**, Stooq tartalék) | `build(df,cfg)` |
 | `sessions.py` | Asia/London/NY szekvencia-valószínűség (intraday) | `build(df,cfg)` |
 | `reversal.py` | sweep-reclaim fordulat („lesöpri a mélyt, visszahódít") | `detect(df,cfg)` |
-| `trade.py` | belépő/stop/T1/T2, zónák, hedge, void, **TRAP WATCH** (bikacsapda-figyelő) | `plan`, `zones`, `trap_watch` |
+| `trade.py` | belépő/stop/T1/T2, zónák, hedge, void, **TRAP WATCH**, **CROWD GATE** (L/S-kapu), reversal R:R-alsó határ | `plan`, `zones`, `trap_watch`, `crowd_gate` |
 | `backtest.py` | 4 backteszt: irány, cél-találat, szint-belépő, **swing** (walk-forward) | `run`, `run_targets`, `run_levels`, `run_swing` |
 | `position.py` | állapot-követés futások közt (BE/T1/T2/stop, --track) | `manage`, `open_from_plan` |
 | `dashboard.py` | terminál-render | `render(sig,liq,db,cfg,dwell,trade,overlays)` |
 | `volregime.py` | **SWING**: vol-kompresszió detektor (ATR%/BB-szélesség percentilis, squeeze) | `build(df,cfg)`, `series(df,cfg)` |
 | `etfflow.py` | **SWING**: US spot-ETF napi nettó flow (farside.co.uk, best-effort) | `build(cfg)` |
+| `oimap.py` | **OI-alapú likvidációs térkép** (OKX óránkénti OI + taker-arány, friss pozíciók) | `build(cfg)` |
+| `options.py` | **Deribit opciók**: lejáratok, max pain, P/C, csatatér-strike-ok | `build(cfg, price)` |
+| `mining.py` | **Bányászat**: hashrate, hashprice, nehézség, kikapcsolási árak, hash ribbon | `build(cfg, price)` |
 | `swing.py` | **SWING réteg**: 6 kapu (heti regime, kompozit 65+, vol-timing, ETF, tömeg, gravitáció) → havi 1-3 nagy trade terv, 1/3 TP + Donchian(10) runner | `build(df,sig,liq,cfg,vol,etf,rf,grav)` |
 
 `run.py` = a belépési pont (mindent összeköt). `make_newsletter.py` = részletes PDF hírlevél
