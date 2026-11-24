@@ -1,0 +1,802 @@
+//@version=6
+// =====================================================================
+//  BTC SUITE  -  LiqMap + Orderflow összesítő EGY indikátorban
+//   FŐ CHARTON: likvidációs térkép (proxy, 5 tőzsde) + volumenprofil,
+//     VWAP-ok, előző nap/hét szintek, két táblázat
+//   PANELEN: CVD perp/spot + ΔOI
+//  Becslés, nem pénzügyi tanács. Részletek: pine/liq_map.pine és
+//  pine/orderflow_suite.pine fejléce.
+// =====================================================================
+indicator("BTC Suite (LiqMap + Orderflow) · signal-engine", shorttitle = "BTC-Suite", overlay = false, max_boxes_count = 500, max_labels_count = 500, max_lines_count = 100, max_bars_back = 5000)
+
+// ######################## 1. LIKVIDÁCIÓS TÉRKÉP ########################
+
+// ----------------------------- inputs --------------------------------
+grpE = "Motor (a Python-motor alapértékei)"
+tf       = input.timeframe("D", "Számítási idősík", group = grpE)
+lb       = input.int(5, "Swing lookback (pivot)", minval = 2, maxval = 20, group = grpE)
+histBars = input.int(400, "Történet (HTF bar)", minval = 50, maxval = 2000, group = grpE)
+halfLife = input.float(365.0, "Idő-súly felezési ideje (HTF bar, 0 = nincs)", minval = 0, group = grpE)
+zoneMult = input.float(0.3, "Klaszter-szélesség (ATR x)", minval = 0.05, step = 0.05, group = grpE)
+fltSwept = input.bool(false, "Csak ÉLŐ likviditás (kisöpört szintek elrejtése)", tooltip = "BE: csak azokat a szinteket mutatja, amelyeken az ár a pivot óta nem ment át (vadászható likviditás). KI (alap): minden szint látszik - támasz/ellenállásként ezek a validáltak (a szint-belépő backteszt szűrés nélkül +17,9%, szűréssel -1,4%).", group = grpE)
+
+grpV = "Tőzsdék (a chart szimbóluma mindig benne van)"
+en2 = input.bool(true, "", inline = "v2", group = grpV)
+v2  = input.symbol("BINANCE:BTCUSDT", "2.", inline = "v2", group = grpV)
+en3 = input.bool(true, "", inline = "v3", group = grpV)
+v3  = input.symbol("COINBASE:BTCUSD", "3.", inline = "v3", group = grpV)
+en4 = input.bool(true, "", inline = "v4", group = grpV)
+v4  = input.symbol("KRAKEN:XBTUSD", "4.", inline = "v4", group = grpV)
+en5 = input.bool(true, "", inline = "v5", group = grpV)
+v5  = input.symbol("OKX:BTCUSDT", "5.", inline = "v5", group = grpV)
+
+grpD = "Megjelenítés"
+showPct   = input.float(25.0, "Rajzolt sáv az ártól (±%)", minval = 1, group = grpD)
+minCnt    = input.int(3, "Min. klaszterméret a rajzhoz (x)", minval = 1, group = grpD)
+drawBack  = input.int(40, "Dobozok hossza balra (bar)", minval = 5, maxval = 400, group = grpD)
+showSwept = input.bool(true, "Kisöpört zónák mutatása", group = grpD)
+swHours   = input.int(24, "Kisöpört-ablak (óra)", minval = 1, maxval = 720, group = grpD)
+tblPosS   = input.string("Jobb fent", "Táblázat helye", options = ["Jobb fent", "Jobb lent", "Bal fent", "Bal lent"], group = grpD)
+colUp     = input.color(#2fbf71, "Fenti klaszter (short-likv.)", group = grpD)
+colDn     = input.color(#f0514a, "Lenti klaszter (long-likv.)", group = grpD)
+colSw     = input.color(#8b949e, "Kisöpört zóna", group = grpD)
+
+grpF = "Áramlás (opcionális TradingView-adatok)"
+showOI  = input.bool(true, "Open interest", group = grpF)
+oiSym   = input.symbol("BINANCE:BTCUSDT.P_OI", "OI szimbólum", group = grpF)
+showBfx = input.bool(true, "Bitfinex margin long/short", group = grpF)
+bfxLsym = input.symbol("BITFINEX:BTCUSDLONGS", "Longs", group = grpF)
+bfxSsym = input.symbol("BITFINEX:BTCUSDSHORTS", "Shorts", group = grpF)
+
+grpA = "Riasztások (TradingView: Feltétel → Any alert() function call)"
+alUp   = input.float(0.0, "Záró e szint FÖLÖTT (0 = ki)", group = grpA)
+alDn   = input.float(0.0, "Záró e szint ALATT (0 = ki)", group = grpA)
+alNear = input.bool(true, "Az ár eléri a legközelebbi klasztert", group = grpA)
+
+// ----------------------------- globals -------------------------------
+float tfMs = timeframe.in_seconds(tf) * 1000.0
+var int[] TIERS = array.from(10, 25, 50, 100)
+
+var float[] hiP = array.new_float()
+var int[]   hiT = array.new_int()
+var float[] hiX = array.new_float()   // max high since the pivot
+var float[] loP = array.new_float()
+var int[]   loT = array.new_int()
+var float[] loX = array.new_float()   // min low since the pivot
+
+var box[]   gBoxes  = array.new_box()
+var label[] gLabels = array.new_label()
+
+// ----------------------------- helpers -------------------------------
+f_mmr(int lev) =>
+    lev == 10 ? 0.004 : lev == 25 ? 0.005 : lev == 50 ? 0.0075 : 0.01
+
+f_bit(int lev) =>
+    lev == 10 ? 1 : lev == 25 ? 2 : lev == 50 ? 4 : 8
+
+// completed-HTF-bar values only (non-repainting): pivot price, pivot time, avg range
+f_piv(int n) =>
+    ph = ta.pivothigh(high, n, n)
+    pl = ta.pivotlow(low, n, n)
+    rg = ta.sma(high - low, 14)
+    [ph[1], pl[1], time[n + 1], rg[1]]
+
+// push a pivot once (dedupe by pivot time per venue); returns the new "last time"
+f_add(float p, int t, int lastT, float[] P, int[] T, float[] X) =>
+    int out = lastT
+    if not na(p) and not na(t) and (na(lastT) or t != lastT)
+        P.push(p)
+        T.push(t)
+        X.push(p)
+        out := t
+    out
+
+f_prune(float[] P, int[] T, float[] X, float maxAgeMs) =>
+    while T.size() > 0 and (time - T.get(0)) > maxAgeMs
+        T.shift()
+        P.shift()
+        X.shift()
+    while T.size() > 800
+        T.shift()
+        P.shift()
+        X.shift()
+
+// project liquidation levels. mode 0 = live (above price for highs / below for lows),
+// mode 1 = swept (inside [lo, hi] of the recent window)
+f_levels(float[] P, int[] T, float[] X, bool isHigh, float px, int mode, float lo, float hi) =>
+    lv = array.new_float()
+    ag = array.new_float()
+    tr = array.new_int()
+    n = P.size()
+    if n > 0
+        for i = 0 to n - 1
+            a = (time - T.get(i)) / tfMs
+            if a <= histBars
+                e = P.get(i)
+                for lev in TIERS
+                    v = isHigh ? e * (1 + 1.0 / lev - f_mmr(lev)) : e * (1 - 1.0 / lev + f_mmr(lev))
+                    bool live = not fltSwept or (isHigh ? v > X.get(i) : v < X.get(i))
+                    keep = mode == 0 ? (isHigh ? v > px and live : v < px and live) : (v >= lo and v <= hi)
+                    if keep
+                        lv.push(v)
+                        ag.push(a)
+                        tr.push(lev)
+    [lv, ag, tr]
+
+// greedy 1-D clustering (same as liquidity._cluster): chain if gap <= width
+f_cluster(float[] lv, float[] ag, int[] tr, float width, float hl) =>
+    cP = array.new_float()
+    cN = array.new_int()
+    cW = array.new_float()
+    cA = array.new_float()
+    cM = array.new_int()
+    n = lv.size()
+    if n > 0
+        idx = lv.sort_indices(order.ascending)
+        float sumP = 0.0
+        int   cnt  = 0
+        float wsum = 0.0
+        float amin = 1e9
+        int   mask = 0
+        float lastV = na
+        for k = 0 to n - 1
+            j = idx.get(k)
+            v = lv.get(j)
+            if not na(lastV) and v - lastV > width
+                cP.push(sumP / cnt)
+                cN.push(cnt)
+                cW.push(wsum)
+                cA.push(amin)
+                cM.push(mask)
+                sumP := 0.0
+                cnt  := 0
+                wsum := 0.0
+                amin := 1e9
+                mask := 0
+            a = ag.get(j)
+            sumP += v
+            cnt  += 1
+            wsum += hl > 0 ? math.pow(0.5, a / hl) : 1.0
+            amin := math.min(amin, a)
+            b = f_bit(tr.get(j))
+            if math.floor(mask / b) % 2 == 0
+                mask += b
+            lastV := v
+        cP.push(sumP / cnt)
+        cN.push(cnt)
+        cW.push(wsum)
+        cA.push(amin)
+        cM.push(mask)
+    [cP, cN, cW, cA, cM]
+
+f_tiers(int m) =>
+    s = ""
+    s += math.floor(m / 1) % 2 == 1 ? "10 " : ""
+    s += math.floor(m / 2) % 2 == 1 ? "25 " : ""
+    s += math.floor(m / 4) % 2 == 1 ? "50 " : ""
+    s += math.floor(m / 8) % 2 == 1 ? "100" : ""
+    s
+
+f_px(float p) =>
+    p >= 1000 ? str.tostring(math.round(p)) : str.tostring(p, format.mintick)
+
+f_pct(float p, float px) =>
+    d = (p / px - 1) * 100
+    (d >= 0 ? "+" : "") + str.tostring(d, "0.0") + "%"
+
+f_band(float[] cP, int[] cN, float[] cW, float px, float pct, bool above) =>
+    int n = 0
+    float w = 0.0
+    if cP.size() > 0
+        for i = 0 to cP.size() - 1
+            p = cP.get(i)
+            inb = above ? p <= px * (1 + pct / 100) : p >= px * (1 - pct / 100)
+            if inb
+                n += cN.get(i)
+                w += cW.get(i)
+    [n, w]
+
+f_pull(float[] cP, float[] cW, float px, float atr) =>
+    float s = 0.0
+    if cP.size() > 0
+        for i = 0 to cP.size() - 1
+            s += cW.get(i) / (1 + math.abs(cP.get(i) - px) / atr)
+    s
+
+f_big(float[] cW) =>
+    int k = -1
+    float best = -1.0
+    if cW.size() > 0
+        for i = 0 to cW.size() - 1
+            if cW.get(i) > best
+                best := cW.get(i)
+                k := i
+    k
+
+f_sum(int[] a) =>
+    int s = 0
+    if a.size() > 0
+        for i = 0 to a.size() - 1
+            s += a.get(i)
+    s
+
+f_draw(float[] cP, int[] cN, float[] cW, float[] cA, int[] cM, color col, float px, float width, string tag) =>
+    if cN.size() > 0
+        maxN = math.max(1, cN.max())
+        for i = 0 to cP.size() - 1
+            p = cP.get(i)
+            n = cN.get(i)
+            if n >= minCnt and math.abs(p / px - 1) * 100 <= showPct
+                tr = int(math.max(30, 85 - 55 * float(n) / float(maxN)))
+                bx = box.new(left = bar_index - drawBack, top = p + width / 2, right = bar_index + 10, bottom = p - width / 2, border_color = color.new(col, 55), bgcolor = color.new(col, tr), force_overlay = true)
+                gBoxes.push(bx)
+                txt = tag + f_px(p) + "  x" + str.tostring(n) + "  s" + str.tostring(cW.get(i), "0.0") + "  " + str.tostring(math.round(cA.get(i))) + "n  " + f_pct(p, px) + "\n[" + f_tiers(cM.get(i)) + "]"
+                lbl = label.new(x = bar_index + 11, y = p, text = txt, style = label.style_label_left, color = color.new(col, 100), textcolor = col, size = size.small, force_overlay = true)
+                gLabels.push(lbl)
+
+f_cell(table t, int c, int r, string s, color tc, color bg) =>
+    table.cell(t, c, r, s, text_color = tc, bgcolor = bg, text_size = size.small)
+
+// ----------------------------- data ----------------------------------
+[ph1, pl1, pt1, rg1] = request.security(syminfo.tickerid, tf, f_piv(lb), lookahead = barmerge.lookahead_on)
+[ph2, pl2, pt2, rg2] = request.security(v2, tf, f_piv(lb), lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true)
+[ph3, pl3, pt3, rg3] = request.security(v3, tf, f_piv(lb), lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true)
+[ph4, pl4, pt4, rg4] = request.security(v4, tf, f_piv(lb), lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true)
+[ph5, pl5, pt5, rg5] = request.security(v5, tf, f_piv(lb), lookahead = barmerge.lookahead_on, ignore_invalid_symbol = true)
+
+use2 = en2 and v2 != syminfo.tickerid
+use3 = en3 and v3 != syminfo.tickerid
+use4 = en4 and v4 != syminfo.tickerid
+use5 = en5 and v5 != syminfo.tickerid
+
+var int lh1 = na
+var int ll1 = na
+var int lh2 = na
+var int ll2 = na
+var int lh3 = na
+var int ll3 = na
+var int lh4 = na
+var int ll4 = na
+var int lh5 = na
+var int ll5 = na
+
+lh1 := f_add(ph1, pt1, lh1, hiP, hiT, hiX)
+ll1 := f_add(pl1, pt1, ll1, loP, loT, loX)
+if use2
+    lh2 := f_add(ph2, pt2, lh2, hiP, hiT, hiX)
+    ll2 := f_add(pl2, pt2, ll2, loP, loT, loX)
+if use3
+    lh3 := f_add(ph3, pt3, lh3, hiP, hiT, hiX)
+    ll3 := f_add(pl3, pt3, ll3, loP, loT, loX)
+if use4
+    lh4 := f_add(ph4, pt4, lh4, hiP, hiT, hiX)
+    ll4 := f_add(pl4, pt4, ll4, loP, loT, loX)
+if use5
+    lh5 := f_add(ph5, pt5, lh5, hiP, hiT, hiX)
+    ll5 := f_add(pl5, pt5, ll5, loP, loT, loX)
+
+f_prune(hiP, hiT, hiX, histBars * tfMs)
+f_prune(loP, loT, loX, histBars * tfMs)
+
+// running extremes since each pivot, updated once per completed HTF bar
+[hh1, ll1x, ht1] = request.security(syminfo.tickerid, tf, [high[1], low[1], time[1]], lookahead = barmerge.lookahead_on)
+var int lastHt = na
+if not na(ht1) and (na(lastHt) or ht1 != lastHt)
+    lastHt := ht1
+    if hiX.size() > 0
+        for i = 0 to hiX.size() - 1
+            if hiT.get(i) < ht1
+                hiX.set(i, math.max(hiX.get(i), hh1))
+    if loX.size() > 0
+        for i = 0 to loX.size() - 1
+            if loT.get(i) < ht1
+                loX.set(i, math.min(loX.get(i), ll1x))
+
+oiNow  = request.security(oiSym, "60", close, ignore_invalid_symbol = true)
+oiPrev = request.security(oiSym, "60", close[24], ignore_invalid_symbol = true)
+bfxL   = request.security(bfxLsym, "60", close, ignore_invalid_symbol = true)
+bfxS   = request.security(bfxSsym, "60", close, ignore_invalid_symbol = true)
+bfxL0  = request.security(bfxLsym, "60", close[24], ignore_invalid_symbol = true)
+
+// level alerts on confirmed chart bars (e.g. on a 4H chart: "4H close above 60 000")
+if barstate.isconfirmed
+    if alUp > 0 and close > alUp and close[1] <= alUp
+        alert(syminfo.ticker + " " + timeframe.period + " záró " + f_px(close) + " a " + f_px(alUp) + " FÖLÖTT", alert.freq_once_per_bar_close)
+    if alDn > 0 and close < alDn and close[1] >= alDn
+        alert(syminfo.ticker + " " + timeframe.period + " záró " + f_px(close) + " a " + f_px(alDn) + " ALATT", alert.freq_once_per_bar_close)
+
+// ----------------------------- map (last bar) ------------------------
+tblPos = tblPosS == "Jobb fent" ? position.top_right : tblPosS == "Jobb lent" ? position.bottom_right : tblPosS == "Bal fent" ? position.top_left : position.bottom_left
+var bool merged = false
+var table tb = table.new(tblPos, 6, 16, bgcolor = color.new(#0d1117, 8), frame_color = color.new(#30363d, 0), frame_width = 1, border_color = color.new(#30363d, 0), border_width = 1, force_overlay = true)
+
+if barstate.islast
+    while gBoxes.size() > 0
+        box.delete(gBoxes.pop())
+    while gLabels.size() > 0
+        label.delete(gLabels.pop())
+
+    float px  = close
+    float atr = rg1
+    if not na(atr) and atr > 0
+        float width = atr * zoneMult
+
+        [aLv, aAg, aTr] = f_levels(hiP, hiT, hiX, true, px, 0, 0.0, 0.0)
+        [bLv, bAg, bTr] = f_levels(loP, loT, loX, false, px, 0, 0.0, 0.0)
+        [aP, aN, aW, aA, aM] = f_cluster(aLv, aAg, aTr, width, halfLife)
+        [bP, bN, bW, bA, bM] = f_cluster(bLv, bAg, bTr, width, halfLife)
+
+        // swept zones: projected levels inside the last swHours range
+        int cut = time - swHours * 3600000
+        float swHi = high
+        float swLo = low
+        for i = 1 to 4999
+            if i > bar_index
+                break
+            if time[i] < cut
+                break
+            swHi := math.max(swHi, high[i])
+            swLo := math.min(swLo, low[i])
+        [sALv, sAAg, sATr] = f_levels(hiP, hiT, hiX, true, px, 1, swLo, swHi)
+        [sBLv, sBAg, sBTr] = f_levels(loP, loT, loX, false, px, 1, swLo, swHi)
+        [sAP, sAN, sAW, sAA, sAM] = f_cluster(sALv, sAAg, sATr, width, halfLife)
+        [sBP, sBN, sBW, sBA, sBM] = f_cluster(sBLv, sBAg, sBTr, width, halfLife)
+
+        f_draw(aP, aN, aW, aA, aM, colUp, px, width, "")
+        f_draw(bP, bN, bW, bA, bM, colDn, px, width, "")
+        if showSwept
+            f_draw(sAP, sAN, sAW, sAA, sAM, colSw, px, width, "söpört short · ")
+            f_draw(sBP, sBN, sBW, sBA, sBM, colSw, px, width, "söpört long · ")
+
+        // ---- numbers ----
+        [a5n, a5w]   = f_band(aP, aN, aW, px, 5, true)
+        [b5n, b5w]   = f_band(bP, bN, bW, px, 5, false)
+        [a10n, a10w] = f_band(aP, aN, aW, px, 10, true)
+        [b10n, b10w] = f_band(bP, bN, bW, px, 10, false)
+        [a20n, a20w] = f_band(aP, aN, aW, px, 20, true)
+        [b20n, b20w] = f_band(bP, bN, bW, px, 20, false)
+        pullA = f_pull(aP, aW, px, atr)
+        pullB = f_pull(bP, bW, px, atr)
+        string gdir = pullB > 1.25 * pullA ? "⬇ LEFELÉ" : pullA > 1.25 * pullB ? "⬆ FELFELÉ" : "⚖ kiegyenlített"
+        kA = f_big(aW)
+        kB = f_big(bW)
+        nVen = (not na(rg1) ? 1 : 0) + (use2 and not na(rg2) ? 1 : 0) + (use3 and not na(rg3) ? 1 : 0) + (use4 and not na(rg4) ? 1 : 0) + (use5 and not na(rg5) ? 1 : 0)
+
+        // ---- table ----
+        color H  = color.new(#161b22, 0)
+        color W  = color.white
+        color M  = color.new(#8b949e, 0)
+        color na_c = color(na)
+        f_cell(tb, 0, 0, "LIKVIDÁCIÓS TÉRKÉP (proxy)", color.new(#f0b429, 0), H)
+        f_cell(tb, 0, 1, "Ár", M, na_c)
+        f_cell(tb, 1, 1, f_px(px), W, na_c)
+        f_cell(tb, 2, 1, "ATR(" + tf + ")", M, na_c)
+        f_cell(tb, 3, 1, f_px(atr), W, na_c)
+        f_cell(tb, 4, 1, "tőzsde", M, na_c)
+        f_cell(tb, 5, 1, str.tostring(nVen) + "/5", W, na_c)
+
+        f_cell(tb, 0, 2, "Sáv", M, H)
+        f_cell(tb, 1, 2, "FENT x", colUp, H)
+        f_cell(tb, 2, 2, "LENT x", colDn, H)
+        f_cell(tb, 3, 2, "F/L", M, H)
+        f_cell(tb, 4, 2, "FENT súly", colUp, H)
+        f_cell(tb, 5, 2, "LENT súly", colDn, H)
+        f_cell(tb, 0, 3, "±5%", W, na_c)
+        f_cell(tb, 1, 3, str.tostring(a5n), W, na_c)
+        f_cell(tb, 2, 3, str.tostring(b5n), W, na_c)
+        f_cell(tb, 3, 3, b5n > 0 ? str.tostring(float(a5n) / b5n, "0.00") : "∞", W, na_c)
+        f_cell(tb, 4, 3, str.tostring(a5w, "0"), W, na_c)
+        f_cell(tb, 5, 3, str.tostring(b5w, "0"), W, na_c)
+        f_cell(tb, 0, 4, "±10%", W, na_c)
+        f_cell(tb, 1, 4, str.tostring(a10n), W, na_c)
+        f_cell(tb, 2, 4, str.tostring(b10n), W, na_c)
+        f_cell(tb, 3, 4, b10n > 0 ? str.tostring(float(a10n) / b10n, "0.00") : "∞", W, na_c)
+        f_cell(tb, 4, 4, str.tostring(a10w, "0"), W, na_c)
+        f_cell(tb, 5, 4, str.tostring(b10w, "0"), W, na_c)
+        f_cell(tb, 0, 5, "±20%", W, na_c)
+        f_cell(tb, 1, 5, str.tostring(a20n), W, na_c)
+        f_cell(tb, 2, 5, str.tostring(b20n), W, na_c)
+        f_cell(tb, 3, 5, b20n > 0 ? str.tostring(float(a20n) / b20n, "0.00") : "∞", W, na_c)
+        f_cell(tb, 4, 5, str.tostring(a20w, "0"), W, na_c)
+        f_cell(tb, 5, 5, str.tostring(b20w, "0"), W, na_c)
+
+        f_cell(tb, 0, 6, "Gravitáció", M, H)
+        f_cell(tb, 1, 6, gdir, W, H)
+        f_cell(tb, 2, 6, "lent " + str.tostring(pullB, "0.0"), colDn, H)
+        f_cell(tb, 3, 6, "fent " + str.tostring(pullA, "0.0"), colUp, H)
+        f_cell(tb, 4, 6, "arány", M, H)
+        f_cell(tb, 5, 6, pullA > 0 ? str.tostring(pullB / pullA, "0.00") : "∞", W, H)
+
+        f_cell(tb, 0, 7, "Legnagyobb FENT", colUp, na_c)
+        f_cell(tb, 1, 7, kA >= 0 ? f_px(aP.get(kA)) : "—", W, na_c)
+        f_cell(tb, 2, 7, kA >= 0 ? f_pct(aP.get(kA), px) : "", W, na_c)
+        f_cell(tb, 3, 7, kA >= 0 ? "x" + str.tostring(aN.get(kA)) : "", W, na_c)
+        f_cell(tb, 4, 7, kA >= 0 ? "s" + str.tostring(aW.get(kA), "0.0") : "", W, na_c)
+        f_cell(tb, 5, 7, kA >= 0 ? str.tostring(math.round(aA.get(kA))) + " nap" : "", M, na_c)
+        f_cell(tb, 0, 8, "Legnagyobb LENT", colDn, na_c)
+        f_cell(tb, 1, 8, kB >= 0 ? f_px(bP.get(kB)) : "—", W, na_c)
+        f_cell(tb, 2, 8, kB >= 0 ? f_pct(bP.get(kB), px) : "", W, na_c)
+        f_cell(tb, 3, 8, kB >= 0 ? "x" + str.tostring(bN.get(kB)) : "", W, na_c)
+        f_cell(tb, 4, 8, kB >= 0 ? "s" + str.tostring(bW.get(kB), "0.0") : "", W, na_c)
+        f_cell(tb, 5, 8, kB >= 0 ? str.tostring(math.round(bA.get(kB))) + " nap" : "", M, na_c)
+
+        f_cell(tb, 0, 9, "Legközelebbi FENT", colUp, na_c)
+        f_cell(tb, 1, 9, aP.size() > 0 ? f_px(aP.get(0)) : "—", W, na_c)
+        f_cell(tb, 2, 9, aP.size() > 0 ? f_pct(aP.get(0), px) : "", W, na_c)
+        f_cell(tb, 3, 9, aP.size() > 0 ? "x" + str.tostring(aN.get(0)) : "", W, na_c)
+        f_cell(tb, 0, 10, "Legközelebbi LENT", colDn, na_c)
+        f_cell(tb, 1, 10, bP.size() > 0 ? f_px(bP.last()) : "—", W, na_c)
+        f_cell(tb, 2, 10, bP.size() > 0 ? f_pct(bP.last(), px) : "", W, na_c)
+        f_cell(tb, 3, 10, bP.size() > 0 ? "x" + str.tostring(bN.last()) : "", W, na_c)
+
+        f_cell(tb, 0, 11, "Kisöpört (" + str.tostring(swHours) + "h)", colSw, H)
+        f_cell(tb, 1, 11, f_px(swLo) + "–" + f_px(swHi), W, H)
+        f_cell(tb, 2, 11, "short x" + str.tostring(f_sum(sAN)), colUp, H)
+        f_cell(tb, 3, 11, "long x" + str.tostring(f_sum(sBN)), colDn, H)
+        f_cell(tb, 4, 11, "pivot F/L", M, H)
+        f_cell(tb, 5, 11, str.tostring(hiP.size()) + "/" + str.tostring(loP.size()), W, H)
+
+        string oiTxt = showOI and not na(oiNow) and not na(oiPrev) and oiPrev != 0 ? str.tostring((oiNow / oiPrev - 1) * 100, "0.0") + "%" : "n/a"
+        string bfxTxt = showBfx and not na(bfxL) and not na(bfxS) and bfxS != 0 ? str.tostring(bfxL / bfxS, "0.0") : "n/a"
+        string bfxChg = showBfx and not na(bfxL) and not na(bfxL0) and bfxL0 != 0 ? str.tostring((bfxL / bfxL0 - 1) * 100, "0.0") + "%" : "n/a"
+        f_cell(tb, 0, 12, "OI 24h", M, na_c)
+        f_cell(tb, 1, 12, oiTxt, W, na_c)
+        f_cell(tb, 2, 12, "BFX L/S", M, na_c)
+        f_cell(tb, 3, 12, bfxTxt, W, na_c)
+        f_cell(tb, 4, 12, "BFX long 24h", M, na_c)
+        f_cell(tb, 5, 12, bfxChg, W, na_c)
+
+        f_cell(tb, 0, 13, "A térkép azt mutatja, HOL reagálhat az ár, nem azt, MERRE megy. Becslés swing-pivotokból, nem valós likvidációs adat.", M, na_c)
+        if not merged
+            table.merge_cells(tb, 0, 0, 5, 0)
+            table.merge_cells(tb, 0, 13, 5, 13)
+            merged := true
+
+        // ---- proximity alerts ----
+        if alNear and aP.size() > 0 and high >= aP.get(0) - width / 2
+            alert(syminfo.ticker + " elérte a fenti klasztert: " + f_px(aP.get(0)) + " (x" + str.tostring(aN.get(0)) + ")", alert.freq_once_per_bar)
+        if alNear and bP.size() > 0 and low <= bP.last() + width / 2
+            alert(syminfo.ticker + " elérte a lenti klasztert: " + f_px(bP.last()) + " (x" + str.tostring(bN.last()) + ")", alert.freq_once_per_bar)
+
+
+// ######################## 2. ORDERFLOW ÖSSZESÍTŐ ########################
+
+// ----------------------------- inputs --------------------------------
+grpP = "Volumenprofil"
+vpMode   = input.string("Látható tartomány", "Tartomány", options = ["Látható tartomány", "Mai nap", "Előző nap", "Utolsó N bar"], group = grpP)
+vpN      = input.int(288, "N bar (ha 'Utolsó N bar')", minval = 10, maxval = 4999, group = grpP)
+vpRows   = input.int(48, "Sorok száma", minval = 10, maxval = 120, group = grpP)
+vpVA     = input.float(70.0, "Értékterület %", minval = 50, maxval = 95, group = grpP)
+vpWidth  = input.int(30, "Hisztogram szélessége (bar)", minval = 5, maxval = 200, group = grpP)
+vpShow   = input.bool(true, "Hisztogram mutatása", group = grpP)
+vpMaxBars = input.int(2000, "Profil: legfeljebb ennyi gyertya", minval = 100, maxval = 4999, group = grpP)
+
+grpW = "VWAP-ok"
+showDV = input.bool(true, "Napi VWAP ±1σ", group = grpW)
+av1On  = input.bool(true, "", inline = "a1", group = grpW)
+av1T   = input.time(timestamp("21 Nov 2026 06:00 +0000"), "AVWAP 1 (mély 55 134)", inline = "a1", group = grpW)
+av2On  = input.bool(true, "", inline = "a2", group = grpW)
+av2T   = input.time(timestamp("01 Nov 2026 00:00 +0000"), "AVWAP 2 (nov. nyitó)", inline = "a2", group = grpW)
+av3On  = input.bool(false, "", inline = "a3", group = grpW)
+av3T   = input.time(timestamp("21 Sep 2026 00:00 +0000"), "AVWAP 3 (87,4k csúcs)", inline = "a3", group = grpW)
+showPD = input.bool(true, "Előző nap/hét csúcs-mély", group = grpW)
+
+grpC = "CVD (5 tőzsde)"
+ltfIn  = input.string("Auto", "Belső idősík", options = ["Auto", "1", "3", "5", "15", "60"], group = grpC)
+cvdRst = input.string("Nap", "CVD nullázás", options = ["Nap", "Hét", "Soha"], group = grpC)
+cvdBars = input.int(1500, "CVD számítás az utolsó N gyertyára", minval = 200, maxval = 20000, tooltip = "Kisebb érték = gyorsabb. Kis idősíkon (15p, 5p) ez akadályozza meg az időtúllépést.", group = grpC)
+p1On = input.bool(true, "", inline = "p1", group = grpC)
+p1   = input.symbol("BINANCE:BTCUSDT.P", "Perp 1", inline = "p1", group = grpC)
+p2On = input.bool(true, "", inline = "p2", group = grpC)
+p2   = input.symbol("BYBIT:BTCUSDT.P", "Perp 2", inline = "p2", group = grpC)
+p3On = input.bool(true, "", inline = "p3", group = grpC)
+p3   = input.symbol("OKX:BTCUSDT.P", "Perp 3", inline = "p3", group = grpC)
+s1On = input.bool(true, "", inline = "s1", group = grpC)
+s1   = input.symbol("BINANCE:BTCUSDT", "Spot 1", inline = "s1", group = grpC)
+s2On = input.bool(true, "", inline = "s2", group = grpC)
+s2   = input.symbol("COINBASE:BTCUSD", "Spot 2", inline = "s2", group = grpC)
+
+grpO = "OI / prémium / dominancia"
+showDOI = input.bool(true, "ΔOI hisztogram a panelen", group = grpO)
+lbN    = input.int(12, "Értelmezési ablak (bar)", minval = 2, maxval = 500, group = grpO)
+cbSym  = input.symbol("COINBASE:BTCUSD", "Prémium: Coinbase", group = grpO)
+bnSym  = input.symbol("BINANCE:BTCUSDT", "Prémium: Binance", group = grpO)
+usdtD  = input.symbol("CRYPTOCAP:USDT.D", "USDT dominancia", group = grpO)
+
+grpT = "Táblázat"
+ofTblPosS = input.string("Jobb lent", "Táblázat helye", options = ["Jobb fent", "Jobb lent", "Bal fent", "Bal lent"], group = grpT)
+
+// ----------------------------- colors --------------------------------
+cVA  = color.new(#8957e5, 55)
+cOut = color.new(#6e7681, 70)
+cPOC = color.new(#d2a8ff, 0)
+cVAl = color.new(#a371f7, 0)
+cPerp = color.new(#f0883e, 0)
+cSpot = color.new(#3fb950, 0)
+cTxt = color.white
+cMut = color.new(#8b949e, 0)
+
+// ----------------------------- VWAPs ---------------------------------
+[dvwap, dvU, dvL] = ta.vwap(hlc3, timeframe.change("D"), 1)
+plot(showDV ? dvwap : na, "Napi VWAP", color.new(#e3b341, 0), 2, force_overlay = true)
+plot(showDV ? dvU : na, "Napi VWAP +1σ", color.new(#e3b341, 60), 1, force_overlay = true)
+plot(showDV ? dvL : na, "Napi VWAP −1σ", color.new(#e3b341, 60), 1, force_overlay = true)
+
+f_avwap(int t) =>
+    var float pv = na
+    var float vv = na
+    if time >= t
+        if na(pv)
+            pv := 0.0
+            vv := 0.0
+        pv += hlc3 * volume
+        vv += volume
+    vv > 0 ? pv / vv : na
+
+av1 = f_avwap(av1T)
+av2 = f_avwap(av2T)
+av3 = f_avwap(av3T)
+plot(av1On ? av1 : na, "AVWAP 1", color.new(#58a6ff, 0), 2, force_overlay = true)
+plot(av2On ? av2 : na, "AVWAP 2", color.new(#ff7b72, 0), 2, force_overlay = true)
+plot(av3On ? av3 : na, "AVWAP 3", color.new(#d29922, 0), 2, force_overlay = true)
+
+[pdh, pdl] = request.security(syminfo.tickerid, "D", [high[1], low[1]], lookahead = barmerge.lookahead_on)
+[pwh, pwl] = request.security(syminfo.tickerid, "W", [high[1], low[1]], lookahead = barmerge.lookahead_on)
+plot(showPD ? pdh : na, "Előző nap csúcs", color.new(#8b949e, 30), 1, plot.style_stepline, force_overlay = true)
+plot(showPD ? pdl : na, "Előző nap mély", color.new(#8b949e, 30), 1, plot.style_stepline, force_overlay = true)
+plot(showPD ? pwh : na, "Előző hét csúcs", color.new(#c9d1d9, 10), 2, plot.style_stepline, force_overlay = true)
+plot(showPD ? pwl : na, "Előző hét mély", color.new(#c9d1d9, 10), 2, plot.style_stepline, force_overlay = true)
+
+// ----------------------------- CVD -----------------------------------
+int tfs = timeframe.in_seconds()
+string ltfAuto = tfs <= 300 ? "1" : tfs <= 3600 ? "5" : tfs <= 14400 ? "15" : "60"
+string ltf = ltfIn == "Auto" ? ltfAuto : ltfIn
+
+// tick-rule delta from lower-timeframe candles (close > open = buy volume),
+// normalised to USD: venues quote volume either in BTC (base) or in USD (quote)
+f_delta(string sym, string tfLow, bool calc) =>
+    string vt = request.security(sym, "1D", syminfo.volumetype, ignore_invalid_symbol = true)
+    [c, o, v] = request.security_lower_tf(sym, tfLow, [close, open, volume], ignore_invalid_symbol = true)
+    float d = 0.0
+    int n = not calc or na(c) or na(o) or na(v) ? 0 : c.size()
+    if n > 0
+        for i = 0 to n - 1
+            cc = c.get(i)
+            oo = o.get(i)
+            vv = v.get(i)
+            usd = vt == "quote" ? vv : vv * cc
+            d += cc > oo ? usd : cc < oo ? -usd : 0.0
+    n > 0 ? d : na
+
+bool calcCvd = bar_index >= last_bar_index - cvdBars
+dp1 = f_delta(p1, ltf, calcCvd)
+dp2 = f_delta(p2, ltf, calcCvd)
+dp3 = f_delta(p3, ltf, calcCvd)
+ds1 = f_delta(s1, ltf, calcCvd)
+ds2 = f_delta(s2, ltf, calcCvd)
+float dPerp = (p1On ? nz(dp1) : 0.0) + (p2On ? nz(dp2) : 0.0) + (p3On ? nz(dp3) : 0.0)
+float dSpot = (s1On ? nz(ds1) : 0.0) + (s2On ? nz(ds2) : 0.0)
+int nVenOF = (p1On and not na(dp1) ? 1 : 0) + (p2On and not na(dp2) ? 1 : 0) + (p3On and not na(dp3) ? 1 : 0) + (s1On and not na(ds1) ? 1 : 0) + (s2On and not na(ds2) ? 1 : 0)
+
+bool rst = cvdRst == "Nap" ? timeframe.change("D") : cvdRst == "Hét" ? timeframe.change("W") : false
+var float cvdP = 0.0
+var float cvdS = 0.0
+if rst
+    cvdP := 0.0
+    cvdS := 0.0
+cvdP += dPerp
+cvdS += dSpot
+plot(cvdP, "CVD perp", cPerp, 2)
+plot(cvdS, "CVD spot", cSpot, 2)
+hline(0, "0", color.new(#30363d, 0))
+
+// ----------------------------- OI ------------------------------------
+oi  = request.security(oiSym, timeframe.period, close, ignore_invalid_symbol = true)
+dOI = oi - oi[1]
+float dAll = dPerp + dSpot
+float kOI = ta.stdev(dAll, 100) / ta.stdev(dOI, 100)
+plot(showDOI and not na(dOI) and not na(kOI) ? dOI * kOI : na, "ΔOI (skálázott)", dOI >= 0 ? color.new(#58a6ff, 50) : color.new(#ff7b72, 50), 1, plot.style_columns)
+
+// ----------------------------- premium / dominance -------------------
+cbPx = request.security(cbSym, timeframe.period, close, ignore_invalid_symbol = true)
+bnPx = request.security(bnSym, timeframe.period, close, ignore_invalid_symbol = true)
+float prem = cbPx - bnPx
+float premPct = bnPx != 0 ? prem / bnPx * 100 : na
+[ud, ud1] = request.security(usdtD, "D", [close, close[1]], ignore_invalid_symbol = true)
+
+// ----------------------------- quadrant (CVD x OI) -------------------
+float cvdWin = math.sum(dAll, lbN)
+float perpWin = math.sum(dPerp, lbN)
+float spotWin = math.sum(dSpot, lbN)
+float oiWin = oi - oi[lbN]
+string quad = na(oiWin) ? "OI n/a" : cvdWin >= 0 and oiWin >= 0 ? "ÚJ LONGOK nyílnak (vétel + OI nő)" : cvdWin < 0 and oiWin >= 0 ? "ÚJ SHORTOK nyílnak (eladás + OI nő)" : cvdWin >= 0 and oiWin < 0 ? "SHORT-FEDEZÉS / squeeze (vétel + OI csökken)" : "LONG-KISZÁLLÁS / likvidálás (eladás + OI csökken)"
+string driver = math.abs(spotWin) > math.abs(perpWin) ? "SPOT vezeti" : "PERP vezeti"
+// absorption / distribution: heavy net aggressive flow that price does NOT follow
+float sdAll = ta.stdev(dAll, 100)
+float zWin = sdAll > 0 ? cvdWin / (sdAll * math.sqrt(lbN)) : na
+float pxChg = (close / close[lbN] - 1) * 100
+string absorb = na(zWin) ? "n/a" : zWin <= -1.5 and pxChg >= -0.3 ? "ELNYELÉS: eladnak, de az ár tart (bikás)" : zWin >= 1.5 and pxChg <= 0.3 ? "ELOSZTÁS: vesznek, de az ár nem megy (medvés)" : zWin <= -1.5 ? "valódi eladói nyomás (az ár is esik)" : zWin >= 1.5 ? "valódi vevői nyomás (az ár is nő)" : "semleges"
+float wP1 = math.sum(nz(dp1), lbN)
+float wP2 = math.sum(nz(dp2), lbN)
+float wP3 = math.sum(nz(dp3), lbN)
+float wS1 = math.sum(nz(ds1), lbN)
+float wS2 = math.sum(nz(ds2), lbN)
+
+// ----------------------------- volume profile ------------------------
+var int dayStart = na
+var int prevDayStart = na
+if timeframe.change("D")
+    prevDayStart := dayStart
+    dayStart := time
+
+var box[]   vpBoxes  = array.new_box()
+var line[]  vpLines  = array.new_line()
+var label[] vpLabels = array.new_label()
+var float vPOC = na
+var float vVAH = na
+var float vVAL = na
+
+f_hline(float y, int x1, int x2, color c, string txt) =>
+    vpLines.push(line.new(x1, y, x2, y, color = c, width = 2, style = line.style_dashed, force_overlay = true))
+    vpLabels.push(label.new(x2, y, txt + " " + str.tostring(y, format.mintick), style = label.style_label_left, color = color.new(c, 85), textcolor = c, size = size.small, force_overlay = true))
+
+if barstate.islast
+    while vpBoxes.size() > 0
+        box.delete(vpBoxes.pop())
+    while vpLines.size() > 0
+        line.delete(vpLines.pop())
+    while vpLabels.size() > 0
+        label.delete(vpLabels.pop())
+
+    int startT = vpMode == "Látható tartomány" ? chart.left_visible_bar_time : vpMode == "Mai nap" ? nz(dayStart, time) : vpMode == "Előző nap" ? nz(prevDayStart, time) : 0
+    int endT = vpMode == "Látható tartomány" ? chart.right_visible_bar_time : vpMode == "Előző nap" ? nz(dayStart, time) - 1 : time
+    int maxI = math.min(bar_index, vpMaxBars)
+    int iFirst = -1
+    int iLast = -1
+    float hi = na
+    float lo = na
+    for i = 0 to maxI
+        if vpMode == "Utolsó N bar" and i >= vpN
+            break
+        int t = time[i]
+        if vpMode != "Utolsó N bar" and t < startT
+            break
+        if t <= endT
+            if iFirst < 0
+                iFirst := i
+            iLast := i
+            hi := na(hi) ? high[i] : math.max(hi, high[i])
+            lo := na(lo) ? low[i] : math.min(lo, low[i])
+    if iFirst >= 0 and hi > lo
+        float step = (hi - lo) / vpRows
+        float[] vol = array.new_float(vpRows, 0.0)
+        for i = iFirst to iLast
+            float h = high[i]
+            float l = low[i]
+            float v = nz(volume[i])
+            if h > l
+                int r0 = math.max(0, math.min(vpRows - 1, int(math.floor((l - lo) / step))))
+                int r1 = math.max(0, math.min(vpRows - 1, int(math.floor((h - lo) / step))))
+                for r = r0 to r1
+                    float rl = lo + r * step
+                    float ov = math.min(h, rl + step) - math.max(l, rl)
+                    if ov > 0
+                        vol.set(r, vol.get(r) + v * ov / (h - l))
+            else
+                int r = math.max(0, math.min(vpRows - 1, int(math.floor((l - lo) / step))))
+                vol.set(r, vol.get(r) + v)
+        int pocR = vol.indexof(vol.max())
+        float total = vol.sum()
+        float va = vol.get(pocR)
+        int up = pocR
+        int dn = pocR
+        while va < total * vpVA / 100 and (up < vpRows - 1 or dn > 0)
+            float vu = up < vpRows - 1 ? vol.get(up + 1) : -1.0
+            float vd = dn > 0 ? vol.get(dn - 1) : -1.0
+            if vu >= vd
+                up += 1
+                va += vu
+            else
+                dn -= 1
+                va += vd
+        vPOC := lo + (pocR + 0.5) * step
+        vVAH := lo + (up + 1) * step
+        vVAL := lo + dn * step
+        float vmax = vol.max()
+        if vpShow
+            for r = 0 to vpRows - 1
+                float vr = vol.get(r)
+                if vr > 0
+                    int len = math.max(1, int(math.round(vr / vmax * vpWidth)))
+                    vpBoxes.push(box.new(bar_index + 2, lo + (r + 1) * step, bar_index + 2 + len, lo + r * step, border_color = color.new(#000000, 100), bgcolor = r == pocR ? color.new(#d2a8ff, 30) : (r >= dn and r <= up ? cVA : cOut), force_overlay = true))
+        int xL = bar_index - iLast
+        int xR = bar_index + vpWidth + 4
+        string pfx = vpMode == "Látható tartomány" ? "V" : vpMode == "Mai nap" ? "D" : vpMode == "Előző nap" ? "PD" : "N"
+        f_hline(vVAH, xL, xR, cVAl, pfx + "VAH")
+        f_hline(vPOC, xL, xR, cPOC, pfx + "POC")
+        f_hline(vVAL, xL, xR, cVAl, pfx + "VAL")
+
+// ----------------------------- table ---------------------------------
+ofTblPos = ofTblPosS == "Jobb fent" ? position.top_right : ofTblPosS == "Jobb lent" ? position.bottom_right : ofTblPosS == "Bal fent" ? position.top_left : position.bottom_left
+var table oft = table.new(ofTblPos, 4, 13, bgcolor = color.new(#0d1117, 8), frame_color = color.new(#30363d, 0), frame_width = 1, border_color = color.new(#30363d, 0), border_width = 1, force_overlay = true)
+var bool ofMerged = false
+
+f_c(int c, int r, string s, color tc) =>
+    table.cell(oft, c, r, s, text_color = tc, text_size = size.small)
+
+of_px(float p) =>
+    na(p) ? "n/a" : str.tostring(p, format.mintick)
+
+f_pos(float p) =>
+    na(p) ? "" : close >= p ? "ár FÖLÖTTE" : "ár ALATTA"
+
+f_num(float x) =>
+    na(x) ? "n/a" : (x >= 0 ? "+" : "") + str.tostring(x, "#,##0.0")
+
+f_m(float x) =>
+    na(x) ? "n/a" : (x >= 0 ? "+" : "") + str.tostring(x / 1e6, "#,##0.0") + "M $"
+
+if barstate.islast
+    f_c(0, 0, "ORDERFLOW ÖSSZESÍTŐ", color.new(#e3b341, 0))
+    f_c(0, 1, "Napi VWAP", cMut)
+    f_c(1, 1, of_px(dvwap), cTxt)
+    f_c(2, 1, f_pos(dvwap), close >= dvwap ? cSpot : color.new(#ff7b72, 0))
+    f_c(0, 2, "Profil (" + vpMode + ")", cMut)
+    f_c(1, 2, "VAH " + of_px(vVAH), cVAl)
+    f_c(2, 2, "POC " + of_px(vPOC), cPOC)
+    f_c(3, 2, "VAL " + of_px(vVAL), cVAl)
+    f_c(0, 3, "AVWAP 1 / 2 / 3", cMut)
+    f_c(1, 3, av1On ? of_px(av1) + " · " + f_pos(av1) : "ki", color.new(#58a6ff, 0))
+    f_c(2, 3, av2On ? of_px(av2) + " · " + f_pos(av2) : "ki", color.new(#ff7b72, 0))
+    f_c(3, 3, av3On ? of_px(av3) + " · " + f_pos(av3) : "ki", color.new(#d29922, 0))
+    f_c(0, 4, "Előző nap / hét", cMut)
+    f_c(1, 4, "nap " + of_px(pdh) + " / " + of_px(pdl), cTxt)
+    f_c(2, 4, "hét " + of_px(pwh) + " / " + of_px(pwl), cTxt)
+    f_c(0, 5, "CVD " + str.tostring(lbN) + " bar", cMut)
+    f_c(1, 5, "perp " + f_m(perpWin), cPerp)
+    f_c(2, 5, "spot " + f_m(spotWin), cSpot)
+    f_c(3, 5, driver + " · " + str.tostring(nVenOF) + "/5 tőzsde", cTxt)
+    f_c(0, 6, "OI " + str.tostring(lbN) + " bar", cMut)
+    f_c(1, 6, na(oiWin) or na(oi[lbN]) or oi[lbN] == 0 ? "n/a" : f_num(oiWin / oi[lbN] * 100) + "%", cTxt)
+    f_c(2, 6, quad, color.new(#e3b341, 0))
+    f_c(0, 7, "Coinbase-prémium", cMut)
+    f_c(1, 7, na(prem) ? "n/a" : f_num(prem) + " $", na(prem) ? cMut : prem >= 0 ? cSpot : color.new(#ff7b72, 0))
+    f_c(2, 7, na(premPct) ? "" : f_num(premPct * 100) + " bp", cTxt)
+    f_c(3, 7, na(prem) ? "" : prem >= 0 ? "US-vevők erősek" : "US-eladók erősek", cMut)
+    f_c(0, 8, "USDT dominancia", cMut)
+    f_c(1, 8, na(ud) ? "n/a" : str.tostring(ud, "0.00") + "%", cTxt)
+    f_c(2, 8, na(ud) or na(ud1) ? "" : f_num((ud - ud1) * 100) + " bp ma", cTxt)
+    f_c(3, 8, na(ud) or na(ud1) ? "" : ud > ud1 ? "risk-off (pénz menekül)" : "risk-on", cMut)
+    f_c(0, 9, "CVD tőzsdénként", cMut)
+    f_c(1, 9, "perp: " + str.tostring(p1) + " " + f_m(wP1) + " · " + str.tostring(p2) + " " + f_m(wP2) + " · " + str.tostring(p3) + " " + f_m(wP3) + "  |  spot: " + str.tostring(s1) + " " + f_m(wS1) + " · " + str.tostring(s2) + " " + f_m(wS2), cTxt)
+    f_c(0, 10, "Elnyelés (z)", cMut)
+    f_c(1, 10, na(zWin) ? "n/a" : str.tostring(zWin, "0.00") + " · ár " + f_num(pxChg) + "%", cTxt)
+    f_c(2, 10, absorb, str.startswith(absorb, "ELNYEL") ? cSpot : str.startswith(absorb, "ELOSZT") ? color.new(#ff7b72, 0) : cMut)
+    f_c(0, 11, "Becslés: CVD tick-szabállyal (" + ltf + " perces belső gyertyák). Orderbook, footprint, valós likvidáció Pine-ban nem érhető el.", cMut)
+    if not ofMerged
+        table.merge_cells(oft, 0, 0, 3, 0)
+        table.merge_cells(oft, 2, 6, 3, 6)
+        table.merge_cells(oft, 1, 9, 3, 9)
+        table.merge_cells(oft, 2, 10, 3, 10)
+        table.merge_cells(oft, 0, 11, 3, 11)
+        ofMerged := true
+
+// ----------------------------- alerts --------------------------------
+var string lastQuad = ""
+var string lastAbs = ""
+bool crossPOC = not na(vPOC) and ta.cross(close, vPOC)
+if barstate.islast and barstate.isconfirmed
+    if crossPOC
+        alert(syminfo.ticker + " átlépte a VPOC-ot: " + of_px(vPOC), alert.freq_once_per_bar_close)
+    if not na(vVAH) and close > vVAH and close[1] <= vVAH
+        alert(syminfo.ticker + " a VAH fölé zárt: " + of_px(vVAH), alert.freq_once_per_bar_close)
+    if not na(vVAL) and close < vVAL and close[1] >= vVAL
+        alert(syminfo.ticker + " a VAL alá zárt: " + of_px(vVAL), alert.freq_once_per_bar_close)
+    if quad != lastQuad and lastQuad != ""
+        alert(syminfo.ticker + " áramlás-váltás: " + quad, alert.freq_once_per_bar_close)
+    lastQuad := quad
+    if absorb != lastAbs and (str.startswith(absorb, "ELNYEL") or str.startswith(absorb, "ELOSZT"))
+        alert(syminfo.ticker + " " + absorb, alert.freq_once_per_bar_close)
+    lastAbs := absorb
+    if not na(prem) and not na(prem[1]) and math.sign(prem) != math.sign(prem[1])
+        alert(syminfo.ticker + " Coinbase-prémium előjelet váltott: " + f_num(prem) + " $", alert.freq_once_per_bar_close)

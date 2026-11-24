@@ -75,6 +75,9 @@ nem kell újragenerálni). Kimenet: `newsletter/BTC_napi_jelentes.pdf`.
 `alert()` riasztások (záró egy szint fölött/alatt, klaszter elérése). Az algoritmus egy
 tőzsdén klaszterre pontosan egyezik a Python-motorral (validálva).
 
+`pine/btc_suite.pine` = **a kettő EGYBEN** (LiqMap + OF-Suite, egy indikátor; ugyanaz a logika, ütközés-mentesen átnevezve).
+Fejlesztéskor a két külön fájlt szerkeszd, utána generáld újra az egyesítettet.
+
 `pine/orderflow_suite.pine` = **TradingView orderflow-összesítő** (Pine v6, egy indikátor): volumenprofil
 (VPOC/VAH/VAL: látható tartomány / mai nap / előző nap / N bar), napi VWAP ±1σ, 3 Anchored VWAP,
 előző nap/hét H/L, CVD perp (Binance/Bybit/OKX) + spot (Binance/Coinbase) alacsonyabb idősíkú
