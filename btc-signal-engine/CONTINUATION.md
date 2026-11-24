@@ -19,8 +19,11 @@ indul, de **1 üzenettel képbe hozható**. Csináld ezt:
 ```
 Egy BTC/kripto jelző-rendszert fejlesztünk. A teljes kód és tudásbázis itt:
 repo stob1985/meditation_companion, branch claude/blissful-meitner-1u3fp,
-almappa btc-signal-engine/. ELŐSZÖR olvasd el a btc-signal-engine/HANDOVER.md-t
-és a README.md-t — abban van az architektúra, minden modul és a stratégia.
+almappa btc-signal-engine/. ELŐSZÖR olvasd el a btc-signal-engine/STATE.md-t
+(validált eredmények, szabályok, trade-napló, aktuális tervek, naptár, nyitott teendők),
+utána a HANDOVER.md-t és a README.md-t (architektúra, modulok, stratégia).
+Fontos: CSAK ADAT ALAPJÁN dolgozz, ne az én véleményem alapján. A tömeg L/S (OKX)
+kontrár jel volt a legmegbízhatóbb; a kompozit és a gravitáció NEM irányjelző.
 
 Amit eddig csináltunk és a stílusom:
 - Minden nap lefuttatjuk: `python run.py --source live` (BTC), és kérésre ETH is.
@@ -40,7 +43,11 @@ Első feladat: futtasd le a mai BTC-t a teljes stack-kel és add meg az
 egyértelmű jelzést (döntés + szintek + gravity + csapda-státusz).
 ```
 
-## 3. Jelenlegi állás (a legutóbbi olvasat — kontextusnak)
+## 3. Jelenlegi állás
+
+**A naprakész állapot a STATE.md-ben van** (ez a szakasz alább csak történeti).
+
+### Történeti (2026-07)
 
 - **Rendszer kész, 22+3 modul aktív** (lásd HANDOVER.md modul-térkép; a +3 a
   SWING réteg: volregime.py, etfflow.py, swing.py + backtest.run_swing).

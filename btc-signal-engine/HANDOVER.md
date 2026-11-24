@@ -4,6 +4,8 @@
 > megértse és integrálja ezt a rendszert. Minden, ami a rendszer működéséhez és
 > továbbfejlesztéséhez kell, itt van összefoglalva.
 
+> **Először a STATE.md-t olvasd** (élő állapot: validált eredmények, szabályok, trade-napló, tervek, nyitott teendők).
+
 ## 0. Hol van a projekt
 
 - **Git repo:** `stob1985/meditation_companion`
