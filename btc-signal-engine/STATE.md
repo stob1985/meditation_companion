@@ -61,6 +61,10 @@ Ha 4H záró 56 400 alatt: lesöprés-long az éves mélynél (visszavétel 55 1
 
 **Short-tervek:** visszateszt 60 400–60 700 (stop 61 300, célok 58 600 / 57 600) · felső zóna 66 800–67 600 (stop 68 600).
 
+**Frissítés 13:25 HU:** ár ~60 300, 10–11 UTC között söprés 59 366-ig és visszavétel. L/S (OKX ccy=BTC, ezt nézi a kapu) 2,58–2,59 → épp a 2,6-os határ alatt = FÉL méret sáv.
+OKX OI 2 órán át +1,3%, lapos ár mellett (új shortok nyílnak). Funding +0,005% (előtte −0,0005%). Coinbase-prémium −82 $ (−13,7 bp).
+NQ határidős +1,7%. TV: ±5%-on belül nincs cluster; lenti mágnes 57 0–58 1k, fenti 66 7k. A tervek változatlanok.
+
 ## 5. Naptár / események (ami eddig kimaradt)
 
 | Mikor | Esemény | Miért számít |
