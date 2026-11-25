@@ -78,6 +78,10 @@ Utána a taker-vétel erősebb, az OI +20M$ az árral együtt (dip-vevők). L/S 
 1H WT −70,6 / −66,5, zöld kereszt még nincs. (Reggel 08 UTC-kor volt egy −58,6-os zöld kereszt 59 422-n, utána −1,8% → a WT önmagában nem elég.)
 Lenti térkép megint lejjebb: motor 57 073 (x12), 5 tőzsde 57 034 (x59), TV 56 073 (x64).
 **Long-terv újraszintezve:** 60% @ 57 100 · 40% @ 56 200 · stop 55 600 (az éves mély fölött) · T1 59 250 (előző napi mély) · T2 61 400 (POC) · 5x.
+**15:45 HU:** második hullám (NQ −4,5%), ár 57 458, mély 57 258 (OKX perp); az 57 100-as belépő még nem teljesült. L/S 2,62 → **2,55** (< 2,6 → FÉL méret engedélyezett).
+OI 20 perc alatt −2,1% → long-tőkeáttétel leépül. 24h long-söprés 96M$; az 57,0k-s bin elfogyott, lent 56,0k 11M, 55,0–55,5k 33M. TV legközelebbi LENT 55 413 (x48).
+WT 1H −74,8 / −67,5 (esik, nincs kereszt). Coinbase −16,9 bp, USDT.D +31 bp.
+Stop marad 55 600: ha az ár eléri az 55,1–55,6k zsebet, a trigger-statisztika (medvében 10/10 alámegy) szerint az 55 029-es stop is kiüt → a szorosabb stop ugyanakkora találati esély mellett kisebb veszteség.
 **Nyitott taktikai short kezelése:** stop 60 750-re (a zóna és a tegnapi csúcs 60 666 fölé), T1 58 600-nál 50% + BE.
 
 ## 5. Naptár / események (ami eddig kimaradt)
