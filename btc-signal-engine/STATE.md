@@ -28,6 +28,8 @@
 | Cipher B divergencia | napi n=2, 4H n=3–4 | eldönthetetlen (kevés minta) |
 | Kompozit (újrafuttatva) | OOS 47,3%, PF 1,15, +41% nettó, max DD −55% | továbbra sem irányjelző |
 | SWING (újrafuttatva) | −7,8%, 1/7 nyerő | nem működik |
+| **B-terv: lesöprés-long a 60n/éves mélynél** (OKX 4H 2021-11–2026-11; trigger: 4H záró < mély+0,85%) | Odajutás (medve, 5–9%-kal a mély fölött, 15 epizód): 10 nap 30%, 20 nap 40%. Trigger után medvében **10/10** a mély alá megy; **mélység medián −9,7%**, 75%: −13,4%, 90%: −15,5%. Visszavétel-long, stop −2,24%: medve 4 T1 / 3 stop, **+0,08R**; mély alatti stop / mélyebb söprés / −10%-os limit sem jobb | **NINCS él** — a 53 900-as stop a tipikus söprés-mélységen belül van. B-terv lefokozva figyelésre |
+| Hálaadás (8 év) | 3/8 év ≥2× range, mind esés (−6…−9%); 2022–25: mindkét nap a szokásosnál nyugodtabb | nem konzisztens |
 
 ## 2. Szabályok (a hibákból)
 
