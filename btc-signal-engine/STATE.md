@@ -73,6 +73,11 @@ A lenti térkép lejjebb került: motor 57 322 (x14), 5 tőzsde 57 305 (x70), TV
 **ÚJ long-terv:** 60% @ 57 300 · 40% @ 56 500 · stop **55 600** (a régi 56 400-as stop a TV 56 448-as csomójába esne → 1. szabály) · T1 60 000 · T2 62 900. Feltételek változatlanok.
 A felhasználó shortja (limit 60 700) NEM teljesült (csúcs 60 666) → tanulság: zónában skálázva (fele 60 450, fele 60 650), ne a zóna szélén.
 **USA-adatnap mérés (OKX 1H, szept. 23–nov. 25, hétköznap, n=44):** a 13–16 UTC (14–17 HU) ablak 36%-ban emelkedett, átlag −0,31%, átlagos |mozgás| 1,04%. Az órás range 14–15 UTC-kor 1,22% (Ázsiában ~0,55%). Regime-függő, nem validált szabály.
+**2026-11-25 15:25 HU (forró USA-infláció után):** 13:30 UTC-kor esés 58 824 → 57 923 (OKX perp), most ~58 400. 24h long-söprés 29 → 70M$ (az 58,5/58,0k csomók elfogytak).
+Utána a taker-vétel erősebb, az OI +20M$ az árral együtt (dip-vevők). L/S 2,60–2,62 → a tömeg NEM kapitulált. NQ −3,8%, ES −2,2%, USDT.D +19 bp.
+1H WT −70,6 / −66,5, zöld kereszt még nincs. (Reggel 08 UTC-kor volt egy −58,6-os zöld kereszt 59 422-n, utána −1,8% → a WT önmagában nem elég.)
+Lenti térkép megint lejjebb: motor 57 073 (x12), 5 tőzsde 57 034 (x59), TV 56 073 (x64).
+**Long-terv újraszintezve:** 60% @ 57 100 · 40% @ 56 200 · stop 55 600 (az éves mély fölött) · T1 59 250 (előző napi mély) · T2 61 400 (POC) · 5x.
 **Nyitott taktikai short kezelése:** stop 60 750-re (a zóna és a tegnapi csúcs 60 666 fölé), T1 58 600-nál 50% + BE.
 
 ## 5. Naptár / események (ami eddig kimaradt)
