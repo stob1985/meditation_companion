@@ -86,6 +86,8 @@ Stop marad 55 600: ha az ár eléri az 55,1–55,6k zsebet, a trigger-statisztik
 L/S 2,55 → **2,74** (a tömeg visszavásárolt), OI +2,3% az árral → új longok. LONG TILTVA, a limitet vissza kell vonni, amíg L/S > 2,6.
 15m WT zöld kereszt −62-nél; 1H még nincs (−70,3 / −69,0).
 Taktikai short opció: 58 800–59 260 elutasítás + L/S > 2,6 → stop 59 800, T1 57 300, T2 56 100 (nem validált szint; az irány a validált L/S-jelből jön).
+**18:36 HU:** a taktikai short trigger 17 UTC-kor teljesült (zóna 58 987, 1H záró 58 589, L/S 2,74). Utána felfutás 59 783-ig (a stop 59 800, 17 ponton múlt), most 59 471 → a short −1,5%.
+L/S **2,91** (a minta legmagasabb értékei), OI +2,9% az árral → új longok. 1H WT zöld kereszt 16 UTC-kor −66,7-nél, de az ár nem érte el a long-zónát, és a kapu tilt. Coinbase −11,4 bp.
 **Nyitott taktikai short kezelése:** stop 60 750-re (a zóna és a tegnapi csúcs 60 666 fölé), T1 58 600-nál 50% + BE.
 
 ## 5. Naptár / események (ami eddig kimaradt)
