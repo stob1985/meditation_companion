@@ -82,6 +82,10 @@ Lenti térkép megint lejjebb: motor 57 073 (x12), 5 tőzsde 57 034 (x59), TV 56
 OI 20 perc alatt −2,1% → long-tőkeáttétel leépül. 24h long-söprés 96M$; az 57,0k-s bin elfogyott, lent 56,0k 11M, 55,0–55,5k 33M. TV legközelebbi LENT 55 413 (x48).
 WT 1H −74,8 / −67,5 (esik, nincs kereszt). Coinbase −16,9 bp, USDT.D +31 bp.
 Stop marad 55 600: ha az ár eléri az 55,1–55,6k zsebet, a trigger-statisztika (medvében 10/10 alámegy) szerint az 55 029-es stop is kiüt → a szorosabb stop ugyanakkora találati esély mellett kisebb veszteség.
+**16:03 HU:** mély 57 258 (14:45 UTC), az 57 100-as belépő NEM teljesült (158 pont). Visszapattanás 58 711-ig, most ~58 380.
+L/S 2,55 → **2,74** (a tömeg visszavásárolt), OI +2,3% az árral → új longok. LONG TILTVA, a limitet vissza kell vonni, amíg L/S > 2,6.
+15m WT zöld kereszt −62-nél; 1H még nincs (−70,3 / −69,0).
+Taktikai short opció: 58 800–59 260 elutasítás + L/S > 2,6 → stop 59 800, T1 57 300, T2 56 100 (nem validált szint; az irány a validált L/S-jelből jön).
 **Nyitott taktikai short kezelése:** stop 60 750-re (a zóna és a tegnapi csúcs 60 666 fölé), T1 58 600-nál 50% + BE.
 
 ## 5. Naptár / események (ami eddig kimaradt)
