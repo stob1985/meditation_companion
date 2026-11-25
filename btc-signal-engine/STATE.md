@@ -63,7 +63,13 @@ Ha 4H záró 56 400 alatt: lesöprés-long az éves mélynél (visszavétel 55 1
 
 **Frissítés 13:25 HU:** ár ~60 300, 10–11 UTC között söprés 59 366-ig és visszavétel. L/S (OKX ccy=BTC, ezt nézi a kapu) 2,58–2,59 → épp a 2,6-os határ alatt = FÉL méret sáv.
 OKX OI 2 órán át +1,3%, lapos ár mellett (új shortok nyílnak). Funding +0,005% (előtte −0,0005%). Coinbase-prémium −82 $ (−13,7 bp).
-NQ határidős +1,7%. TV: ±5%-on belül nincs cluster; lenti mágnes 57 0–58 1k, fenti 66 7k. A tervek változatlanok.
+NQ határidős +1,7%. TV: ±5%-on belül nincs cluster; lenti mágnes 57,0–58,1k, fenti 66,7k. A tervek változatlanok.
+
+**2026-11-25 07:00 HU:** ár ~59 070, az előző napi mély (59 260) alatt, a VWAP/VAL alatt. A taktikai short feltétele nov. 24-én 14 UTC-kor teljesült (zóna 60 558, záró 59 988), a T1 58 600 még nincs meg.
+L/S 2,64 → LONG TILTVA. OI lapos, funding +0,0065%. Coinbase-prémium −14,6 bp. NQ −3,7%/24h. Hash ribbon: KAPITULÁCIÓ (nem validált).
+A lenti térkép lejjebb került: motor 57 322 (x14), 5 tőzsde 57 305 (x70), TV 56 448 (x74); OI-modell ±2%: lent 42M vs fent 1M.
+**ÚJ long-terv:** 60% @ 57 300 · 40% @ 56 500 · stop **55 600** (a régi 56 400-as stop a TV 56 448-as csomójába esne → 1. szabály) · T1 60 000 · T2 62 900. Feltételek változatlanok.
+**Nyitott taktikai short kezelése:** stop 60 750-re (a zóna és a tegnapi csúcs 60 666 fölé), T1 58 600-nál 50% + BE.
 
 ## 5. Naptár / események (ami eddig kimaradt)
 
