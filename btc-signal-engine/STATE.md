@@ -69,6 +69,8 @@ NQ határidős +1,7%. TV: ±5%-on belül nincs cluster; lenti mágnes 57,0–58,
 L/S 2,64 → LONG TILTVA. OI lapos, funding +0,0065%. Coinbase-prémium −14,6 bp. NQ −3,7%/24h. Hash ribbon: KAPITULÁCIÓ (nem validált).
 A lenti térkép lejjebb került: motor 57 322 (x14), 5 tőzsde 57 305 (x70), TV 56 448 (x74); OI-modell ±2%: lent 42M vs fent 1M.
 **ÚJ long-terv:** 60% @ 57 300 · 40% @ 56 500 · stop **55 600** (a régi 56 400-as stop a TV 56 448-as csomójába esne → 1. szabály) · T1 60 000 · T2 62 900. Feltételek változatlanok.
+A felhasználó shortja (limit 60 700) NEM teljesült (csúcs 60 666) → tanulság: zónában skálázva (fele 60 450, fele 60 650), ne a zóna szélén.
+**USA-adatnap mérés (OKX 1H, szept. 23–nov. 25, hétköznap, n=44):** a 13–16 UTC (14–17 HU) ablak 36%-ban emelkedett, átlag −0,31%, átlagos |mozgás| 1,04%. Az órás range 14–15 UTC-kor 1,22% (Ázsiában ~0,55%). Regime-függő, nem validált szabály.
 **Nyitott taktikai short kezelése:** stop 60 750-re (a zóna és a tegnapi csúcs 60 666 fölé), T1 58 600-nál 50% + BE.
 
 ## 5. Naptár / események (ami eddig kimaradt)
