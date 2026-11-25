@@ -88,6 +88,13 @@ L/S 2,55 → **2,74** (a tömeg visszavásárolt), OI +2,3% az árral → új lo
 Taktikai short opció: 58 800–59 260 elutasítás + L/S > 2,6 → stop 59 800, T1 57 300, T2 56 100 (nem validált szint; az irány a validált L/S-jelből jön).
 **18:36 HU:** a taktikai short trigger 17 UTC-kor teljesült (zóna 58 987, 1H záró 58 589, L/S 2,74). Utána felfutás 59 783-ig (a stop 59 800, 17 ponton múlt), most 59 471 → a short −1,5%.
 L/S **2,91** (a minta legmagasabb értékei), OI +2,9% az árral → új longok. 1H WT zöld kereszt 16 UTC-kor −66,7-nél, de az ár nem érte el a long-zónát, és a kapu tilt. Coinbase −11,4 bp.
+**18:40 HU – TERV (a felhasználó nincs pozícióban):** ár 59 570, napi H/L 59 801 / 57 258, napi VWAP 58 684.
+OI-modell: ±2% lent 0 (a longok kisöpörve, 24h 92M$), fent 6,9M; ±5% fent 39,8M vs lent 10,8M → a közeli üzemanyag most FENT van (60–62,5k).
+L/S 2,92, OI emelkedik → a validált jel lefelé mutat (72 óra), de előbb felfelé szorítás valószínű.
+Motor új napi gyertyával: BUY 55 481–56 476 (x24, friss), 5 tőzsde 57 354 (x92).
+- **A) Short (fő terv):** belép a 60 800–61 700 sávba, 1H záró vissza 60 800 alá, L/S > 2,6 → stop 62 000 · T1 58 700 · T2 57 350.
+- **B) Short:** 62 000–62 500-ig söpör, 1H záró vissza 61 700 alá → stop 62 900 · T1 58 700 · T2 57 350.
+- **C) Long:** 60% @ 57 350 · 40% @ 56 450 · stop 55 600 · T1 59 800 · T2 61 700 — csak ha L/S ≤ 2,6.
 **Nyitott taktikai short kezelése:** stop 60 750-re (a zóna és a tegnapi csúcs 60 666 fölé), T1 58 600-nál 50% + BE.
 
 ## 5. Naptár / események (ami eddig kimaradt)
