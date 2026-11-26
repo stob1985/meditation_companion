@@ -132,6 +132,11 @@ Motor új napi gyertyával: BUY 55 481–56 476 (x24, friss), 5 tőzsde 57 354 (
 - ✅ Újravalidálás: L/S, Coinbase-prémium, AVWAP, Cipher-divergencia, szint-belépő, swing, kompozit (lásd 1. pont)
 
 - ✅ **Óránkénti figyelő:** `watch.py` + `watch_levels.yaml`. Ütemezett feladat „BTC belépő-figyelő (óránként)”, trigger `trig_01V1CZ4p1Z8BTX73CNbhpA1y`, cron `3 * * * *` UTC, minden futás friss session, push + e-mail értesítés.
+  **Tökéletes-szűrő:** Telegram/ntfy belépő-üzenet CSAK akkor megy, ha minden pont teljesül.
+  KÖTELEZŐ: tömegkapu (validált), R:R ≥ 2, nincs ellentétes pozíció (5. szabály), nincs esemény-ablak, validált setup-típus (az L2 nem az).
+  MEGERŐSÍTŐ: Coinbase-prémium (short < −10 bp / long ≥ −10 bp), elnyelés-detektor nem ellene, regime (shortnál: medvében 5–12%-kal a 60n mély fölött = ELLENE).
+  A pozíciókezelés (kiszállás / stop / T1) mindig megy. MINTA: `WATCH_SAMPLE=S1 python3 watch.py [--send]`.
+  Telegram: @Btcriasztasbot, chat id 1710773583. A tokent a felhasználó teszi be a környezet változói közé (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID). SOHA ne commitold.
   **A szintek változásakor a `watch_levels.yaml`-t frissíteni + pusholni kell**, a figyelő mindig a branch legfrissebb állapotát olvassa. A nyitott pozíciót a `position:` blokk írja le (null, ha nincs).
 
 **MÉG NYITOTT:**

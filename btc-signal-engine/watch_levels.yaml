@@ -6,6 +6,11 @@ crowd:
   ls_long_full: 2.3      # L/S <= ennél: teljes méret
 notify:
   ntfy_topic: btc-riaszto-8c44ed76afa1   # ntfy app → Subscribe to topic → ezt a nevet (ntfy.sh szerver)
+events:                  # esemény-ablak: ±window_h órán belül nincs "tökéletes" belépő
+  - {t: "2026-11-27 02:29", window_h: 1, name: "nehézség-igazítás +8,7%"}
+  - {t: "2026-11-27 08:00", window_h: 2, name: "Deribit havi lejárat (~112k BTC)"}
+  - {t: "2026-12-04 08:00", window_h: 2, name: "Deribit lejárat (58k put 6,4k BTC)"}
+  - {t: "2026-12-25 08:00", window_h: 3, name: "Deribit negyedéves lejárat (~163k BTC)"}
 lookback_bars: 6         # ennyi lezárt 1H gyertyán belül kell a zónaérintésnek lennie
 
 setups:
@@ -49,6 +54,7 @@ setups:
     retest_low: 61600
     stop: 60800
     targets: [64500, 66700]
+    validated: false      # kitörés-belépőt nem teszteltünk → soha nem lehet "tökéletes"
 
 position:                # a felhasználó nyitott pozíciója (null, ha nincs)
   side: short

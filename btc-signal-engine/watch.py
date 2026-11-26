@@ -71,6 +71,15 @@ def main():
     w4 = w4[w4.confirm == 1].reset_index(drop=True)
     w41, w42 = wavetrend(w4)
 
+    day = candles("BTC-USDT", "1Dutc", 300)
+    day = day[day.confirm == 1].reset_index(drop=True)
+    sma200 = day.c.rolling(200).mean().iloc[-1]
+    e50, e200 = day.c.ewm(span=50).mean().iloc[-1], day.c.ewm(span=200).mean().iloc[-1]
+    bear = day.c.iloc[-1] < sma200 and e50 < e200
+    low60 = day.l.iloc[-60:].min()
+    above_low = (price / low60 - 1) * 100
+    atr_d = (day.h - day.l).rolling(14).mean().iloc[-1]
+
     ls_rows = _get("/api/v5/rubik/stat/contracts/long-short-account-ratio", ccy="BTC", period="5m")
     ls = float(ls_rows[0][1]) if ls_rows else float("nan")
     ls_1h = [round(float(r[1]), 2) for r in _get("/api/v5/rubik/stat/contracts/long-short-account-ratio",
@@ -113,9 +122,68 @@ def main():
                 return j == len(seg) - 1, seg
         return False, seg
 
+    sample = os.environ.get("WATCH_SAMPLE")  # e.g. S1 → render that setup's message as a sample
+    pos = cfg.get("position") or {}
+    events = [(pd.Timestamp(e["t"]), float(e.get("window_h", 2)), e["name"]) for e in (cfg.get("events") or [])]
+    cbp = (extra.get("cb") or {}).get("bp")
+    absd = extra.get("abs") or {}
+
+    def checklist(name, st, why):
+        side = st["side"]
+        if sample == name:
+            entry = {"reject_down": st.get("close_below", 0) - 100, "break_down": st.get("level", 0),
+                     "reclaim_up": sum(st.get("entries", [0])) / max(len(st.get("entries", [1])), 1),
+                     "breakout_retest": st.get("level", 0)}[st["type"]]
+        else:
+            entry = float(last.c)
+        stop, tg = st["stop"], st["targets"]
+        risk = abs(entry - stop)
+        rrs = [abs(t - entry) / risk if risk else 0 for t in tg]
+        K, M = [], []  # (ok, label)
+        if side == "short":
+            K.append((ls > cr["ls_short_min"], f"tömeg L/S {ls:.2f} > {cr['ls_short_min']} (validált kontrár jel)"))
+        else:
+            K.append((ls <= cr["ls_long_max"], f"tömeg L/S {ls:.2f} ≤ {cr['ls_long_max']} (validált kapu)"))
+        K.append((max(rrs) >= 2.0, f"R:R ≥ 2 (most {' / '.join(f'{r:.1f}' for r in rrs)})"))
+        opp = pos.get("side") and pos.get("side") != side
+        K.append((not opp, "nincs ellentétes nyitott pozíció (5. szabály)" if not opp
+                  else f"NYITOTT {pos['side'].upper()} – előbb azt kell zárni (5. szabály)"))
+        ev = [n for t, w, n in events if abs((now - t.tz_localize("UTC")).total_seconds()) <= w * 3600]
+        K.append((not ev, "nincs esemény-ablak" if not ev else f"esemény-ablak: {', '.join(ev)}"))
+        K.append((st.get("validated", True), "validált setup-típus" if st.get("validated", True)
+                  else "NEM validált setup-típus"))
+        if cbp is None:
+            M.append((False, "Coinbase-prémium nem elérhető"))
+        elif side == "short":
+            M.append((cbp < -10, f"Coinbase-prémium {cbp:+.1f} bp < −10 (gyenge validált jel)"))
+        else:
+            M.append((cbp >= -10, f"Coinbase-prémium {cbp:+.1f} bp ≥ −10"))
+        state = absd.get("state", "?")
+        against = "ELNYELÉS" if side == "short" else "ELOSZTÁS"
+        M.append((state != against, f"elnyelés-detektor: {state} (nem ellene)" if state != against
+                  else f"elnyelés-detektor: {state} – ELLENE"))
+        mr = bear and 5 <= above_low <= 12
+        if side == "short":
+            M.append((not mr, f"regime: az ár {above_low:.1f}%-kal a 60n mély fölött"
+                      + (" – medvében itt 77% előbb +5% (ELLENE)" if mr else "")))
+        else:
+            M.append((True, f"regime: {'medve' if bear else 'nem medve'}, {above_low:.1f}% a 60n mély fölött"))
+        perfect = all(o for o, _ in K) and all(o for o, _ in M)
+        failed = [l for o, l in K + M if not o]
+        size = "fél méret" if (side == "long" and ls > cr["ls_long_full"]) else "terv szerinti méret"
+        tag = "MINTA – NEM VALÓS JEL · " if sample == name else ""
+        lines = [f"{'✅ TÖKÉLETES' if perfect else '⚠ NEM tökéletes'} · {tag}{name} {side.upper()} — {st['desc']}",
+                 f"   trigger: {why}",
+                 f"   belépő ~{fmt(entry)} · stop {fmt(stop)} ({risk / entry * 100:.1f}%) · célok "
+                 + " / ".join(fmt(t) for t in tg) + f" · {size}, 5x (20x esetén fél pozíció)",
+                 "   KÖTELEZŐ:"] + [f"     {'✓' if o else '✗'} {l}" for o, l in K] + \
+                ["   MEGERŐSÍTŐ:"] + [f"     {'✓' if o else '✗'} {l}" for o, l in M] + \
+                ["   SZABÁLYOK: stop a csomó MÖGÖTT, nem mozdítjuk · T1-nél 50% zárás + stop break-evenre · "
+                 "csak lezárt 1H gyertya számít"]
+        return dict(perfect=perfect, failed=failed, text="\n".join(lines))
+
     for name, s in cfg["setups"].items():
         side, typ = s["side"], s["type"]
-        crowd_ok = ls > cr["ls_short_min"] if side == "short" else ls <= cr["ls_long_max"]
         fired, why = False, ""
         if typ == "reject_down":
             ev, seg = first_close_after_touch(touch_hi=s["touch"], close_below=s["close_below"])
@@ -143,19 +211,18 @@ def main():
             prev = closed.iloc[-2]
             if last.c > s["level"] >= prev.c:
                 notes.append(f"{name}: 1H záró {fmt(last.c)} > {fmt(s['level'])} — kitörés, VÁRJ visszatesztre")
+        if sample == name and not fired:
+            fired, why = True, "MINTA – az árfeltételt itt feltételezzük"
         if fired:
-            if crowd_ok:
-                size = ""
-                if side == "long":
-                    size = "TELJES méret" if ls <= cr["ls_long_full"] else "FÉL méret (L/S 2,3–2,6)"
-                elif name == "L2":
-                    size = "FÉL méret (nem validált)"
-                alerts.append(f"▶ {name} {side.upper()} BELÉPŐ — {s['desc']}\n   {why}\n   L/S {ls:.2f} ✓ · "
-                              f"stop {fmt(s['stop'])} · célok {' / '.join(fmt(t) for t in s['targets'])} {size}")
+            res = checklist(name, s, why)
+            if res["perfect"]:
+                alerts.append(res["text"])
             else:
-                notes.append(f"{name}: ár-feltétel teljesült ({why}), DE a tömegkapu tilt (L/S {ls:.2f})")
+                notes.append(f"{name}: árfeltétel teljesült ({why}), de NEM tökéletes: "
+                             + ", ".join(res["failed"]))
+                if sample == name:
+                    alerts.append(res["text"])
 
-    pos = cfg.get("position") or {}
     if pos.get("side") == "short":
         if last.c > pos["exit_close_above"]:
             alerts.append(f"■ KISZÁLLÁS a {fmt(pos['entry'])}-es SHORTBÓL — 1H záró {fmt(last.c)} > {fmt(pos['exit_close_above'])}")
@@ -166,13 +233,14 @@ def main():
 
     # ---------------- report ----------------
     hu = now + dt.timedelta(hours=1)
-    head = "RIASZTÁS" if alerts else "NINCS RIASZTÁS"
+    head = ("MINTA" if sample else "RIASZTÁS") if alerts else "NINCS RIASZTÁS"
     print(f"=== {head} · {hu:%Y-%m-%d %H:%M} HU · lezárt 1H gyertya: {last.t + dt.timedelta(hours=1):%H}:00–{last.t + dt.timedelta(hours=2):%H}:00 HU ===")
     for a in alerts:
         print(a)
     for n in notes:
         print("• " + n)
     print(f"\nÁr {fmt(price)} · 1H O/H/L/C {fmt(last.o)}/{fmt(last.h)}/{fmt(last.l)}/{fmt(last.c)}")
+    print(f"Regime: {'MEDVE' if bear else 'nem medve'} · 60n mély {fmt(low60)} (+{above_low:.1f}%) · napi ATR {fmt(atr_d)}")
     print(f"L/S {ls:.2f} (1H: {ls_1h}) · OI 6h {oi_chg:+.1f}% ({oi_v[0]:.0f}M$) · funding {funding:+.4f}%")
     print(f"WT 1H {wt1.iloc[-1]:.1f}/{wt2.iloc[-1]:.1f}{' ZÖLD KERESZT' if wt_green else ''} · "
           f"WT 4H {w41.iloc[-1]:.1f}/{w42.iloc[-1]:.1f}")
@@ -189,7 +257,7 @@ def main():
     if "err" in extra:
         print("(extra adatok hiba: " + extra["err"] + ")")
     print("\nFigyelem: a riasztás azt jelenti, hogy a terv MINDEN feltétele teljesült — nem garancia.")
-    return 10 if alerts else 0
+    return 0 if sample else (10 if alerts else 0)
 
 
 def telegram(text):
@@ -244,7 +312,9 @@ if __name__ == "__main__":
         code = main()
     text = buf.getvalue()
     print(text, end="")
-    if "--test-notify" in sys.argv:
+    if os.environ.get("WATCH_SAMPLE") and "--send" in sys.argv:
+        print(notify("MINTA uzenet (nem valos jel)\n\n" + text, title="BTC MINTA", priority="default"))
+    elif "--test-notify" in sys.argv:
         print(notify("TESZT ertesites (nem valos jel)\n\n" + text, title="BTC TESZT", priority="default"))
     elif code == 10:
         print(notify(text))
