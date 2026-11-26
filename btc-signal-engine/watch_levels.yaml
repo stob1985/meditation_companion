@@ -1,0 +1,56 @@
+# Belépési triggerek a watch.py-hoz (frissítve: 2026-11-26 06:40 HU, STATE.md 4. pont).
+# Minden szint OKX BTC-USDT-SWAP árakon. A watch.py csak LEZÁRT 1H gyertyákat néz.
+crowd:
+  ls_short_min: 2.6      # short csak ha L/S > ennél (validált kontrár jel)
+  ls_long_max: 2.6       # long csak ha L/S <= ennél (fél méret)
+  ls_long_full: 2.3      # L/S <= ennél: teljes méret
+lookback_bars: 6         # ennyi lezárt 1H gyertyán belül kell a zónaérintésnek lennie
+
+setups:
+  S1:
+    side: short
+    desc: "söprés 61 500–62 300, 1H záró vissza 61 500 alá"
+    type: reject_down     # érintés (high >= touch), majd első záró < close_below
+    touch: 61500
+    close_below: 61500
+    stop: 62900
+    targets: [58700, 57350]
+  S2:
+    side: short
+    desc: "letörés: 1H záró 60 100 alatt"
+    type: break_down
+    level: 60100
+    stop: 61100
+    targets: [58700, 57350]
+  S3:
+    side: short
+    desc: "nagy short-zóna 64 500–67 700, elutasítás"
+    type: reject_down
+    touch: 64500
+    close_below: 64500
+    stop: 68700
+    targets: [61000, 57350]
+  L1:
+    side: long
+    desc: "fő long-zóna 57 350 / 56 450"
+    type: reclaim_up      # érintés (low <= touch), majd záró vissza fölé VAGY 1H WT zöld kereszt -53 alatt
+    touch: 57350
+    close_above: 57350
+    entries: [57350, 56450]
+    stop: 55600
+    targets: [59800, 61700]
+  L2:
+    side: long
+    desc: "kitörés 61 700 fölé + visszateszt (NEM validált, fél méret)"
+    type: breakout_retest
+    level: 61700
+    retest_low: 61600
+    stop: 60800
+    targets: [64500, 66700]
+
+position:                # a felhasználó nyitott pozíciója (null, ha nincs)
+  side: short
+  entry: 60700
+  exit_close_above: 61700
+  hard_stop: 62000
+  targets: [58700, 57350]
