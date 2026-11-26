@@ -131,6 +131,9 @@ Motor új napi gyertyával: BUY 55 481–56 476 (x24, friss), 5 tőzsde 57 354 (
 - ✅ Kompozit „NEM validált irány” jelölés a dashboardon
 - ✅ Újravalidálás: L/S, Coinbase-prémium, AVWAP, Cipher-divergencia, szint-belépő, swing, kompozit (lásd 1. pont)
 
+- ✅ **Óránkénti figyelő:** `watch.py` + `watch_levels.yaml`. Ütemezett feladat „BTC belépő-figyelő (óránként)”, trigger `trig_01V1CZ4p1Z8BTX73CNbhpA1y`, cron `3 * * * *` UTC, minden futás friss session, push + e-mail értesítés.
+  **A szintek változásakor a `watch_levels.yaml`-t frissíteni + pusholni kell**, a figyelő mindig a branch legfrissebb állapotát olvassa. A nyitott pozíciót a `position:` blokk írja le (null, ha nincs).
+
 **MÉG NYITOTT:**
 1. **ETF-áramlás:** farside Cloudflare mögött (403) — felhőből nem érhető el; helyi gépen az `etfflow.py` működhet.
 2. **Binance/Bybit adat** a te gépedről (Remote Control) — a kód kész, csak a futtatási hely kell.
