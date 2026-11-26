@@ -192,5 +192,30 @@ def main():
     return 10 if alerts else 0
 
 
+def notify(text, title="BTC RIASZTAS", priority="high"):
+    """Push the report to the ntfy topic from watch_levels.yaml (phone app: ntfy)."""
+    try:
+        cfg = yaml.safe_load(open(os.environ.get("WATCH_LEVELS") or os.path.join(HERE, "watch_levels.yaml")))
+        topic = (cfg.get("notify") or {}).get("ntfy_topic")
+        if not topic:
+            return "nincs ntfy_topic"
+        r = requests.post(f"https://ntfy.sh/{topic}", data=text.encode("utf-8"), timeout=20,
+                          headers={"Title": title, "Priority": priority, "Tags": "rotating_light"})
+        return f"ntfy {r.status_code}"
+    except Exception as e:
+        return f"ntfy hiba: {e}"
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    import contextlib
+    import io
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = main()
+    text = buf.getvalue()
+    print(text, end="")
+    if "--test-notify" in sys.argv:
+        print(notify("TESZT ertesites (nem valos jel)\n\n" + text, title="BTC TESZT", priority="default"))
+    elif code == 10:
+        print(notify(text))
+    sys.exit(code)

@@ -4,6 +4,8 @@ crowd:
   ls_short_min: 2.6      # short csak ha L/S > ennél (validált kontrár jel)
   ls_long_max: 2.6       # long csak ha L/S <= ennél (fél méret)
   ls_long_full: 2.3      # L/S <= ennél: teljes méret
+notify:
+  ntfy_topic: btc-riaszto-8c44ed76afa1   # ntfy app → Subscribe to topic → ezt a nevet (ntfy.sh szerver)
 lookback_bars: 6         # ennyi lezárt 1H gyertyán belül kell a zónaérintésnek lennie
 
 setups:
