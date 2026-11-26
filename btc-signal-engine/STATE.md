@@ -48,6 +48,7 @@
 |---|---|---|---|---|---|---|
 | 2026-11-22 | LONG | 59 700 | ~63 500–64 000 (nov. 23 délután) | 20x | ≈ +127…+144% a fedezeten | terv: stop BE fölé, részzárás ellenállásnál; Huang-hír kilövés |
 | 2026-11-24 | LONG | 60 400 | 59 800 (stop) | ? | ≈ −1% ár (10x: −10%) | **feltételek nem teljesültek** (L/S 2,8); stop a csomók közé esett |
+| 2026-11-26 | SHORT | 60 700 (~06:30 HU) | nyitott | ? | | Az A-terv triggere 01 UTC-kor teljesült (wick 61 620, záró 60 504, L/S 2,77). A belépéskor viszont az L/S már 2,57 volt (< 2,6 → a validált él megszűnt). Hard stop 62 000, kiszállás 1H záró > 61 700 esetén |
 
 ## 4. Piaci állapot és tervek (2026-11-24 11:40)
 
