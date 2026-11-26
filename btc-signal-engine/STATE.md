@@ -96,6 +96,12 @@ Motor új napi gyertyával: BUY 55 481–56 476 (x24, friss), 5 tőzsde 57 354 (
 - **A) Short (fő terv):** belép a 60 800–61 700 sávba, 1H záró vissza 60 800 alá, L/S > 2,6 → stop 62 000 · T1 58 700 · T2 57 350.
 - **B) Short:** 62 000–62 500-ig söpör, 1H záró vissza 61 700 alá → stop 62 900 · T1 58 700 · T2 57 350.
 - **C) Long:** 60% @ 57 350 · 40% @ 56 450 · stop 55 600 · T1 59 800 · T2 61 700 — csak ha L/S ≤ 2,6.
+**2026-11-26 06:40 HU – belépési triggerek** (ár ~60 900, L/S 2,57):
+- **S1 short:** söprés 61 500–62 300 → 1H záró < 61 500, L/S > 2,6 · stop 62 900 · T1 58 700 · T2 57 350.
+- **S2 short:** 1H záró < 60 100, L/S > 2,6 · stop 61 100 · T1 58 700 · T2 57 350.
+- **S3 short:** 64 500–67 700-as nagy sáv, elutasítás · stop 68 700.
+- **L1 long:** 57 350 / 56 450 · stop 55 600 · L/S ≤ 2,6 (≤ 2,3 teljes méret) + megerősítés.
+- **L2 long (nem validált, fél méret):** 1H záró > 61 700, visszateszt tart · stop 60 800 · T1 64 500 · T2 66 700.
 **Nyitott taktikai short kezelése:** stop 60 750-re (a zóna és a tegnapi csúcs 60 666 fölé), T1 58 600-nál 50% + BE.
 
 ## 5. Naptár / események (ami eddig kimaradt)
