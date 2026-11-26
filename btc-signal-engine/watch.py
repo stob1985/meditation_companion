@@ -192,21 +192,51 @@ def main():
     return 10 if alerts else 0
 
 
+def telegram(text):
+    """Send via Telegram bot. Needs env TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID (set by the user in the
+    environment settings, never committed)."""
+    tok, chat = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
+    if not tok or not chat:
+        return "telegram: nincs beállítva"
+    try:
+        r = requests.post(f"https://api.telegram.org/bot{tok}/sendMessage", timeout=20,
+                          json={"chat_id": chat, "text": text[:4000], "disable_web_page_preview": True})
+        return f"telegram {r.status_code}" + ("" if r.ok else f" {r.json().get('description', '')}")
+    except Exception as e:
+        return f"telegram hiba: {type(e).__name__}"
+
+
+def telegram_chat_ids():
+    """Helper: list chat ids that messaged the bot (send /start to your bot first)."""
+    tok = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not tok:
+        return "nincs TELEGRAM_BOT_TOKEN"
+    d = requests.get(f"https://api.telegram.org/bot{tok}/getUpdates", timeout=20).json()
+    ids = {(u.get("message") or {}).get("chat", {}).get("id") for u in d.get("result", [])}
+    ids.discard(None)
+    return f"chat id(k): {sorted(ids)}" if ids else "nincs üzenet — írj /start-ot a botodnak, majd futtasd újra"
+
+
 def notify(text, title="BTC RIASZTAS", priority="high"):
-    """Push the report to the ntfy topic from watch_levels.yaml (phone app: ntfy)."""
+    """Push the report to Telegram (if configured) and to the ntfy topic from watch_levels.yaml."""
+    out = [telegram(f"🚨 {title}\n\n{text}")]
     try:
         cfg = yaml.safe_load(open(os.environ.get("WATCH_LEVELS") or os.path.join(HERE, "watch_levels.yaml")))
         topic = (cfg.get("notify") or {}).get("ntfy_topic")
         if not topic:
-            return "nincs ntfy_topic"
+            return " · ".join(out + ["nincs ntfy_topic"])
         r = requests.post(f"https://ntfy.sh/{topic}", data=text.encode("utf-8"), timeout=20,
                           headers={"Title": title, "Priority": priority, "Tags": "rotating_light"})
-        return f"ntfy {r.status_code}"
+        out.append(f"ntfy {r.status_code}")
     except Exception as e:
-        return f"ntfy hiba: {e}"
+        out.append(f"ntfy hiba: {e}")
+    return " · ".join(out)
 
 
 if __name__ == "__main__":
+    if "--tg-chatid" in sys.argv:
+        print(telegram_chat_ids())
+        sys.exit(0)
     import contextlib
     import io
     buf = io.StringIO()
