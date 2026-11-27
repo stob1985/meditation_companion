@@ -29,6 +29,7 @@
 | Kompozit (újrafuttatva) | OOS 47,3%, PF 1,15, +41% nettó, max DD −55% | továbbra sem irányjelző |
 | SWING (újrafuttatva) | −7,8%, 1/7 nyerő | nem működik |
 | **B-terv: lesöprés-long a 60n/éves mélynél** (OKX 4H 2021-11–2026-11; trigger: 4H záró < mély+0,85%) | Odajutás (medve, 5–9%-kal a mély fölött, 15 epizód): 10 nap 30%, 20 nap 40%. Trigger után medvében **10/10** a mély alá megy; **mélység medián −9,7%**, 75%: −13,4%, 90%: −15,5%. Visszavétel-long, stop −2,24%: medve 4 T1 / 3 stop, **+0,08R**; mély alatti stop / mélyebb söprés / −10%-os limit sem jobb | **NINCS él** — a 53 900-as stop a tipikus söprés-mélységen belül van. B-terv lefokozva figyelésre |
+| **Söprés-elutasítás short** (OKX 1H 2024-11–2026-11, medve-regime, a 2 napos csúcs fölé söpör, majd 1H záró vissza alá; stop a söprés fölött; cél 2R, 72 óra) | összes n=42: 29% 2R, −0,12R · **5–12%-kal a 60n mély fölött n=13: 8% 2R, 85% stop, −0,69R** · >12%: n=28, 39% 2R, +0,18R | **A regime-szűrő adattal alátámasztott.** Nov. 27-én az S1 (61 432, 11,4%) ezért nem volt ideális, bár ez az egy eset bejött. |
 | Hálaadás (8 év) | 3/8 év ≥2× range, mind esés (−6…−9%); 2022–25: mindkét nap a szokásosnál nyugodtabb | nem konzisztens |
 
 ## 2. Szabályok (a hibákból)
