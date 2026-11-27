@@ -135,7 +135,7 @@ Motor új napi gyertyával: BUY 55 481–56 476 (x24, friss), 5 tőzsde 57 354 (
   **Tökéletes-szűrő:** Telegram/ntfy belépő-üzenet CSAK akkor megy, ha minden pont teljesül.
   KÖTELEZŐ: tömegkapu (validált), R:R ≥ 2, nincs ellentétes pozíció (5. szabály), nincs esemény-ablak, validált setup-típus (az L2 nem az).
   MEGERŐSÍTŐ: Coinbase-prémium (short < −10 bp / long ≥ −10 bp), elnyelés-detektor nem ellene, regime (shortnál: medvében 5–12%-kal a 60n mély fölött = ELLENE).
-  A pozíciókezelés (kiszállás / stop / T1) mindig megy. MINTA: `WATCH_SAMPLE=S1 python3 watch.py [--send]`.
+  **Nov. 27-től a felhasználó kérésére CSAK ideális („tökéletes”) belépőre megy üzenet;** a pozíciókezelési üzenetek ki vannak kapcsolva (`position: null`). MINTA: `WATCH_SAMPLE=S1 python3 watch.py [--send]`.
   Telegram: @Btcriasztasbot, chat id 1710773583. A tokent a felhasználó teszi be a környezet változói közé (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID). SOHA ne commitold.
   **A szintek változásakor a `watch_levels.yaml`-t frissíteni + pusholni kell**, a figyelő mindig a branch legfrissebb állapotát olvassa. A nyitott pozíciót a `position:` blokk írja le (null, ha nincs).
 

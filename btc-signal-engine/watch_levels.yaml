@@ -56,9 +56,5 @@ setups:
     targets: [64500, 66700]
     validated: false      # kitörés-belépőt nem teszteltünk → soha nem lehet "tökéletes"
 
-position:                # a felhasználó nyitott pozíciója (null, ha nincs)
-  side: short
-  entry: 60700
-  exit_close_above: 61700
-  hard_stop: 62000
-  targets: [58700, 57350]
+position: null           # a felhasználó kérése (nov. 27.): CSAK ideális belépőre jöjjön riasztás,
+                         # pozíciókezelési üzenet (kiszállás/stop/T1) nem. Nyitott pozíció esetén is null marad.
