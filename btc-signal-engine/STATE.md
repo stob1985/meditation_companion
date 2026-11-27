@@ -102,6 +102,10 @@ Motor új napi gyertyával: BUY 55 481–56 476 (x24, friss), 5 tőzsde 57 354 (
 - **S3 short:** 64 500–67 700-as nagy sáv, elutasítás · stop 68 700.
 - **L1 long:** 57 350 / 56 450 · stop 55 600 · L/S ≤ 2,6 (≤ 2,3 teljes méret) + megerősítés.
 - **L2 long (nem validált, fél méret):** 1H záró > 61 700, visszateszt tart · stop 60 800 · T1 64 500 · T2 66 700.
+**2026-11-27 16:10 HU:** 14 UTC-kor esés 61 432 → 59 024 (OI −5,6% → long-likvidáció), most ~58 900. A havi lejárat lezajlott (Deribit OI 438k → 339k BTC).
+L/S 2,41 → **2,76** (a tömeg az esésbe vett → validált medvés jel). Viszont a regime +6,7%-kal a 60n mély fölött → 77% előbb +5% (ELLENE).
+Coinbase −15 bp. OI-térkép: fent ±5%-on belül ~0; lent 58,0k 18M, 55,0–55,5k 46M, 54–54,5k 52M. A legerősebb lenti csomó: 5 tőzsde 56 073 (x105), TV 56 140 (x86).
+**L1 újraszintezve:** 56 150, stop 54 900, T1 58 800, T2 60 350 (watch_levels.yaml). Nincs ideális belépő.
 **Nyitott taktikai short kezelése:** stop 60 750-re (a zóna és a tegnapi csúcs 60 666 fölé), T1 58 600-nál 50% + BE.
 
 ## 5. Naptár / események (ami eddig kimaradt)

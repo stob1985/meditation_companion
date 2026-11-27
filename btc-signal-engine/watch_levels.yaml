@@ -1,4 +1,4 @@
-# Belépési triggerek a watch.py-hoz (frissítve: 2026-11-26 06:40 HU, STATE.md 4. pont).
+# Belépési triggerek a watch.py-hoz (frissítve: 2026-11-27 16:10 HU, STATE.md 4. pont).
 # Minden szint OKX BTC-USDT-SWAP árakon. A watch.py csak LEZÁRT 1H gyertyákat néz.
 crowd:
   ls_short_min: 2.6      # short csak ha L/S > ennél (validált kontrár jel)
@@ -39,13 +39,13 @@ setups:
     targets: [61000, 57350]
   L1:
     side: long
-    desc: "fő long-zóna 57 350 / 56 450"
+    desc: "fő long-zóna 56 150 (5 tőzsde 56 073 x105, TV 56 140 x86, motor BUY 55 076–56 084)"
     type: reclaim_up      # érintés (low <= touch), majd záró vissza fölé VAGY 1H WT zöld kereszt -53 alatt
-    touch: 57350
-    close_above: 57350
-    entries: [57350, 56450]
-    stop: 55600
-    targets: [59800, 61700]
+    touch: 56150
+    close_above: 56150
+    entries: [56150]
+    stop: 54900           # az 55,0–56,1k zseb és az éves mély (55 134) alatt
+    targets: [58800, 60350]
   L2:
     side: long
     desc: "kitörés 61 700 fölé + visszateszt (NEM validált, fél méret)"
