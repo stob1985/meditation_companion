@@ -107,6 +107,9 @@ Motor új napi gyertyával: BUY 55 481–56 476 (x24, friss), 5 tőzsde 57 354 (
 L/S 2,41 → **2,76** (a tömeg az esésbe vett → validált medvés jel). Viszont a regime +6,7%-kal a 60n mély fölött → 77% előbb +5% (ELLENE).
 Coinbase −15 bp. OI-térkép: fent ±5%-on belül ~0; lent 58,0k 18M, 55,0–55,5k 46M, 54–54,5k 52M. A legerősebb lenti csomó: 5 tőzsde 56 073 (x105), TV 56 140 (x86).
 **L1 újraszintezve:** 56 150, stop 54 900, T1 58 800, T2 60 350 (watch_levels.yaml). Nincs ideális belépő.
+**2026-11-28 12:00 HU (szombat):** ár 59 194, alacsonyabb 4H csúcsok (60 525 → 59 832), a napi VWAP (59 731) alatt. L/S 18 órája 2,84–3,03 (tartós tömeg-long → validált medvés).
+Coinbase −10,6 bp. OI lapos. OI-térkép: lent ±5%-on belül 79M vs fent 13M; 57,0k 21M, 54–55,5k ~102M. Regime +7,4% → short NEM ideális.
+L1 → 56 300 (5 tőzsde 56 362 x106, TV 56 208, motor 56 221), stop 54 900, T1 58 800, T2 60 350.
 **Nyitott taktikai short kezelése:** stop 60 750-re (a zóna és a tegnapi csúcs 60 666 fölé), T1 58 600-nál 50% + BE.
 
 ## 5. Naptár / események (ami eddig kimaradt)
